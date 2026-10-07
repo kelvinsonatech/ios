@@ -1,0 +1,32 @@
+{
+  "identifier" : "6C1F7C2A",
+  "nonRenewingSubscriptions" : [],
+  "products" : [],
+  "settings" : { "_failTransactionsEnabled" : false },
+  "subscriptionGroups" : [
+    {
+      "id" : "21500001",
+      "localizations" : [],
+      "name" : "Lumen Premium",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [], "codeOffers" : [], "displayPrice" : "9.99", "familyShareable" : false,
+          "groupNumber" : 1, "internalID" : "6500000001",
+          "introductoryOffer" : { "internalID" : "6500000011", "paymentMode" : "free", "subscriptionPeriod" : "P1W" },
+          "localizations" : [ { "description" : "All courses, exams and unlimited AI tutoring", "displayName" : "Premium Monthly", "locale" : "en_US" } ],
+          "productID" : "com.lumenlearning.premium.monthly", "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Premium Monthly", "subscriptionGroupID" : "21500001", "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [], "codeOffers" : [], "displayPrice" : "79.99", "familyShareable" : false,
+          "groupNumber" : 1, "internalID" : "6500000002",
+          "introductoryOffer" : { "internalID" : "6500000012", "paymentMode" : "free", "subscriptionPeriod" : "P1W" },
+          "localizations" : [ { "description" : "All courses, exams and unlimited AI tutoring", "displayName" : "Premium Yearly", "locale" : "en_US" } ],
+          "productID" : "com.lumenlearning.premium.yearly", "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Premium Yearly", "subscriptionGroupID" : "21500001", "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : { "major" : 3, "minor" : 0 }
+}

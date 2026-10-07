@@ -1,0 +1,8 @@
+// Shared build settings. Real values live in Secrets.xcconfig (git-ignored).
+// Copy Secrets.example.xcconfig -> Secrets.xcconfig and fill it in.
+
+#include? "Secrets.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = $(LUMEN_BUNDLE_ID)
+LUMEN_BUNDLE_ID = com.lumenlearning.app
+LUMEN_URL_SCHEME = lumen
