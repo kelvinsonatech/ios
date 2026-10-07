@@ -52,6 +52,8 @@ struct Bookmark: Codable, Hashable, Identifiable, Sendable {
     var id: String { "\(itemType.rawValue):\(itemId)" }
     let itemType: BookmarkKind
     let itemId: UUID
+    /// Course id for lessons, so the lesson can be opened directly.
+    let parentId: UUID?
     let title: String
     let subtitle: String?
     let createdAt: Date

@@ -64,13 +64,13 @@ actor AuthClient {
         )
         // When email confirmation is enabled GoTrue returns a user without tokens.
         guard response.accessToken != nil else { return nil }
-        return try store(response, event: .signedIn)
+        return try store(response, event: AuthEvent.signedIn)
     }
 
     func signIn(email: String, password: String) async throws -> AuthSession {
         struct Body: Encodable { let email: String; let password: String }
         let response: TokenResponse = try await post("token?grant_type=password", body: Body(email: email, password: password))
-        return try store(response, event: .signedIn)
+        return try store(response, event: AuthEvent.signedIn)
     }
 
     /// Exchanges an Apple identity token. `nonce` is the raw nonce whose SHA256 was sent to Apple.
@@ -79,7 +79,7 @@ actor AuthClient {
         let response: TokenResponse = try await post(
             "token?grant_type=id_token", body: Body(provider: "apple", idToken: idToken, nonce: nonce)
         )
-        return try store(response, event: .signedIn)
+        return try store(response, event: AuthEvent.signedIn)
     }
 
     /// Builds the OAuth authorize URL for PKCE. Returns the verifier the caller must keep.
@@ -98,7 +98,7 @@ actor AuthClient {
     func exchangeOAuthCode(_ code: String, verifier: String) async throws -> AuthSession {
         struct Body: Encodable { let authCode: String; let codeVerifier: String }
         let response: TokenResponse = try await post("token?grant_type=pkce", body: Body(authCode: code, codeVerifier: verifier))
-        return try store(response, event: .signedIn)
+        return try store(response, event: AuthEvent.signedIn)
     }
 
     func sendPasswordReset(email: String) async throws {
@@ -142,7 +142,7 @@ actor AuthClient {
             struct Body: Encodable { let refreshToken: String }
             do {
                 let response: TokenResponse = try await post("token?grant_type=refresh_token", body: Body(refreshToken: refreshToken))
-                return try store(response, event: .refreshed)
+                return try store(response, event: AuthEvent.refreshed)
             } catch let error as APIError where error == .unauthorized || isInvalidGrant(error) {
                 clear()
                 throw APIError.unauthorized

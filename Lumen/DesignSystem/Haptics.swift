@@ -1,10 +1,18 @@
 import UIKit
 
-@MainActor
+/// Haptic feedback that is safe to call from any context.
 enum Haptics {
-    static func selection() { UISelectionFeedbackGenerator().selectionChanged() }
-    static func tap() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-    static func success() { UINotificationFeedbackGenerator().notificationOccurred(.success) }
-    static func warning() { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
-    static func error() { UINotificationFeedbackGenerator().notificationOccurred(.error) }
+    static func selection() { onMain { UISelectionFeedbackGenerator().selectionChanged() } }
+    static func tap() { onMain { UIImpactFeedbackGenerator(style: .light).impactOccurred() } }
+    static func success() { onMain { UINotificationFeedbackGenerator().notificationOccurred(.success) } }
+    static func warning() { onMain { UINotificationFeedbackGenerator().notificationOccurred(.warning) } }
+    static func error() { onMain { UINotificationFeedbackGenerator().notificationOccurred(.error) } }
+
+    private static func onMain(_ work: @escaping @MainActor @Sendable () -> Void) {
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { work() }
+        } else {
+            Task { @MainActor in work() }
+        }
+    }
 }

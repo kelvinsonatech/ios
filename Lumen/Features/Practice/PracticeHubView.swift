@@ -42,7 +42,7 @@ struct PracticeHubView: View {
         VStack(alignment: .leading, spacing: Theme.Spacing.md) {
             SectionHeader("Practice modes", subtitle: "Instant feedback after every answer")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: Theme.Spacing.md)], spacing: Theme.Spacing.md) {
-                ForEach(PracticeMode.allCases) { mode in
+                ForEach(PracticeMode.allCases.filter { $0 != .saved }) { mode in
                     Button { open(mode) } label: { ModeTile(mode: mode) }
                         .buttonStyle(.card)
                 }
@@ -87,7 +87,8 @@ struct PracticeHubView: View {
                 Divider().padding(.leading, 52)
                 ToolRow(symbol: "rectangle.on.rectangle.angled", title: "Flashcards", subtitle: "Spaced repetition decks", destination: .flashcards)
                 Divider().padding(.leading, 52)
-                ToolRow(symbol: "bookmark", title: "Saved questions", subtitle: "Questions you bookmarked", destination: .bookmarks)
+                ToolRow(symbol: "bookmark", title: "Saved questions", subtitle: "Questions you bookmarked",
+                        destination: .practice(PracticeRequest(mode: .saved, count: 50), title: "Saved questions"))
             }
             .card(padding: Theme.Spacing.md)
         }

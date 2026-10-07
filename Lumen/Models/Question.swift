@@ -72,7 +72,7 @@ struct AnswerResult: Codable, Hashable, Sendable {
 }
 
 enum PracticeMode: String, CaseIterable, Identifiable, Codable, Sendable {
-    case quick, topic, weakAreas = "weak_areas", revision, custom
+    case quick, topic, weakAreas = "weak_areas", revision, custom, saved
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -81,6 +81,7 @@ enum PracticeMode: String, CaseIterable, Identifiable, Codable, Sendable {
         case .weakAreas: "Weak Areas"
         case .revision: "Revision"
         case .custom: "Custom Practice"
+        case .saved: "Saved Questions"
         }
     }
     var subtitle: String {
@@ -90,6 +91,7 @@ enum PracticeMode: String, CaseIterable, Identifiable, Codable, Sendable {
         case .weakAreas: "Target what you find hardest"
         case .revision: "From lessons you've finished"
         case .custom: "Choose subject, topic and difficulty"
+        case .saved: "Questions you bookmarked"
         }
     }
     var symbol: String {
@@ -99,6 +101,7 @@ enum PracticeMode: String, CaseIterable, Identifiable, Codable, Sendable {
         case .weakAreas: "target"
         case .revision: "arrow.counterclockwise"
         case .custom: "slider.horizontal.3"
+        case .saved: "bookmark"
         }
     }
 }

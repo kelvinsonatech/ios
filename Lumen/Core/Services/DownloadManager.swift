@@ -36,9 +36,8 @@ final class DownloadManager {
         try? context.save()
     }
 
-    var wifiOnly: Bool {
-        get { UserDefaults.standard.object(forKey: Self.wifiOnlyKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: Self.wifiOnlyKey) }
+    var wifiOnly: Bool = UserDefaults.standard.object(forKey: DownloadManager.wifiOnlyKey) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(wifiOnly, forKey: Self.wifiOnlyKey) }
     }
 
     var totalBytes: Int64 { items.reduce(0) { $0 + $1.byteSize } }

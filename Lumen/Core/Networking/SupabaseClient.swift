@@ -147,7 +147,9 @@ final class SupabaseClient: Sendable {
 
     private func mapError(status: Int, data: Data) -> APIError {
         let body = try? JSONCoding.decoder.decode(SupabaseErrorBody.self, from: data)
-        if body?.code == "premium_required" || body?.message == "premium_required" { return .premiumRequired }
+        let reason = body?.hint ?? body?.message
+        if body?.code == "premium_required" || reason == "premium_required" { return .premiumRequired }
+        if reason == "rate_limited" { return .rateLimited }
         switch status {
         case 401: return .unauthorized
         case 403: return .forbidden

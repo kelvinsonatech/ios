@@ -1,0 +1,26 @@
+# Supabase CLI configuration (local development and function deploy settings).
+project_id = "lumen"
+
+[api]
+max_rows = 1000
+
+[auth]
+site_url = "lumen://auth-callback"
+additional_redirect_urls = ["lumen://auth-callback"]
+
+[auth.external.apple]
+enabled = true
+client_id = "env(APPLE_SERVICES_ID)"
+secret = "env(APPLE_SIGNIN_SECRET)"
+
+[auth.external.google]
+enabled = false
+client_id = "env(GOOGLE_CLIENT_ID)"
+secret = "env(GOOGLE_CLIENT_SECRET)"
+
+[realtime]
+enabled = true
+
+# Apple calls this webhook without a Supabase JWT; the signed payload is verified instead.
+[functions.app-store-notifications]
+verify_jwt = false
