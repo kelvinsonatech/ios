@@ -1,0 +1,1 @@
+ALTER TABLE "servers" ADD COLUMN "sync_warnings" text[] DEFAULT '{}'::text[] NOT NULL;

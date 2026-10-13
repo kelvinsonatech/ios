@@ -38,7 +38,7 @@ export async function listPublicProtocols() {
       durationOptions: protocols.durationOptions,
       defaultDurationDays: protocols.defaultDurationDays,
       serverCount: sql<number>`(select count(*)::int from ${serverProtocols} sp join ${servers} s on s.id = sp.server_id
-        where sp.protocol_id = ${protocols.id} and sp.enabled and sp.detected and s.deleted_at is null
+        where sp.protocol_id = "protocols"."id" and sp.enabled and sp.detected and s.deleted_at is null
         and s.lifecycle in ('active','maintenance') and s.compatibility <> 'unsupported'
         and s.status in ('online','full','maintenance'))`,
     })

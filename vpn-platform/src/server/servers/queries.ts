@@ -31,14 +31,15 @@ export async function listServersForAdmin() {
       currentAccounts: servers.currentAccounts,
       maxAccounts: servers.maxAccounts,
       provisioningVersion: servers.provisioningVersion,
+      capabilities: servers.capabilities,
       lastSeenAt: servers.lastSeenAt,
       lastError: servers.lastError,
       enabledProtocols: sql<number>`(select count(*)::int from ${serverProtocols} sp
-        where sp.server_id = ${servers.id} and sp.enabled and sp.detected)`,
+        where sp.server_id = "servers"."id" and sp.enabled and sp.detected)`,
       detectedProtocols: sql<number>`(select count(*)::int from ${serverProtocols} sp
-        where sp.server_id = ${servers.id} and sp.detected)`,
+        where sp.server_id = "servers"."id" and sp.detected)`,
       protocolNames: sql<string[]>`coalesce((select array_agg(p.name order by p.display_order) from ${serverProtocols} sp
-        join ${protocols} p on p.id = sp.protocol_id where sp.server_id = ${servers.id} and sp.enabled and sp.detected), '{}')`,
+        join ${protocols} p on p.id = sp.protocol_id where sp.server_id = "servers"."id" and sp.enabled and sp.detected), '{}')`,
     })
     .from(servers)
     .where(isNull(servers.deletedAt))

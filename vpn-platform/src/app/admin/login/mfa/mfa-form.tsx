@@ -1,18 +1,18 @@
 "use client";
 
-import { useActionState } from "react";
 import { AlertCircleIcon, LoaderCircleIcon } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { initialActionState } from "@/lib/action-state";
+import { useServerAction } from "@/hooks/use-server-action";
 import { mfaAction } from "../actions";
 
 export function MfaForm() {
-  const [state, action, pending] = useActionState(mfaAction, initialActionState);
+  // Submitted via onSubmit (not <form action>) so typed values survive an error response.
+  const { state, pending, onSubmit } = useServerAction((fd) => mfaAction({}, fd), { toasts: false });
   return (
-    <form action={action} className="grid gap-4">
+    <form onSubmit={onSubmit} className="grid gap-4">
       {state.error ? (
         <Alert variant="destructive">
           <AlertCircleIcon />

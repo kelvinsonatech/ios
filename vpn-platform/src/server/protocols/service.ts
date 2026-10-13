@@ -48,11 +48,11 @@ export async function listProtocolsForAdmin() {
     .select({
       protocol: protocols,
       serversPublished: sql<number>`(select count(*)::int from ${serverProtocols} sp join servers s on s.id = sp.server_id
-        where sp.protocol_id = ${protocols.id} and sp.enabled and sp.detected and s.deleted_at is null
+        where sp.protocol_id = "protocols"."id" and sp.enabled and sp.detected and s.deleted_at is null
         and s.lifecycle in ('active', 'maintenance'))`,
       serversDetected: sql<number>`(select count(*)::int from ${serverProtocols} sp join servers s on s.id = sp.server_id
-        where sp.protocol_id = ${protocols.id} and sp.detected and s.deleted_at is null)`,
-      activeAccounts: sql<number>`(select count(*)::int from ${vpnAccounts} a where a.protocol_id = ${protocols.id} and a.status = 'active')`,
+        where sp.protocol_id = "protocols"."id" and sp.detected and s.deleted_at is null)`,
+      activeAccounts: sql<number>`(select count(*)::int from ${vpnAccounts} a where a.protocol_id = "protocols"."id" and a.status = 'active')`,
     })
     .from(protocols)
     .orderBy(asc(protocols.displayOrder), asc(protocols.name));

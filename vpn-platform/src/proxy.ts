@@ -23,7 +23,7 @@ function csp(nonce: string) {
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
-    ...(dev ? [] : ["upgrade-insecure-requests"]),
+    ...(!dev && process.env.APP_URL?.startsWith("https://") ? ["upgrade-insecure-requests"] : []),
   ].join("; ");
 }
 

@@ -149,7 +149,7 @@ export async function testConnection(serverId: string, actor?: AuditActor): Prom
     const compat = evaluateCompatibility(info.apiVersion, info.agentVersion, env().NODE_AGENT_LATEST_VERSION);
     const warnings = warningsFor(s, info);
     if (health.error) warnings.push(`Health endpoint failed: ${health.error.safeMessage}`);
-    await recordSuccess(s, info, health.value, compat.compatibility, latencyMs);
+    await recordSuccess(s, info, health.value, compat.compatibility, latencyMs, { syncWarnings: warnings });
     if (actor) await audit(actor, "server.test_connection", { targetType: "server", targetId: serverId, details: { ok: true, latencyMs } });
     return {
       ok: true,
@@ -266,6 +266,7 @@ export async function syncServer(serverId: string, actor?: AuditActor): Promise<
     await recordSuccess(s, info, health.value, compat.compatibility, latencyMs, {
       lastSyncAt: new Date(),
       unmappedProtocols: result.unmapped,
+      syncWarnings: warnings,
     });
     if (stats.value) await recordStats(s.id, stats.value);
 

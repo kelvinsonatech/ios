@@ -15,6 +15,13 @@
       "when": 1791910467634,
       "tag": "0001_provisioning_result",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791910695913,
+      "tag": "0002_sync_warnings",
+      "breakpoints": true
     }
   ]
 }

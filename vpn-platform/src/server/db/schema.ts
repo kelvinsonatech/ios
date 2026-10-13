@@ -202,6 +202,8 @@ export const servers = pgTable(
     capabilities: jsonb("capabilities").$type<NodeCapabilities>().notNull().default({}),
     /** Protocol identifiers the node reported that no protocol maps to. */
     unmappedProtocols: text("unmapped_protocols").array().notNull().default(sql`'{}'::text[]`),
+    /** Warnings from the last connect/sync (hostname/IP mismatch, clock skew, ...). */
+    syncWarnings: text("sync_warnings").array().notNull().default(sql`'{}'::text[]`),
     notes: text("notes"),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     lastSuccessfulConnectionAt: timestamp("last_successful_connection_at", { withTimezone: true }),
