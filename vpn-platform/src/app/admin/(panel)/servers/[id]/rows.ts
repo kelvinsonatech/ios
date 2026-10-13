@@ -2,7 +2,7 @@ import type { ServerDetail } from "@/server/servers/queries";
 import type { ProtocolSettingRow } from "../protocol-settings-form";
 
 /** Rows for the protocol settings table: every known protocol, detected ones first. */
-export function toSettingRows(detail: ServerDetail, newSince?: Date | null): ProtocolSettingRow[] {
+export function toSettingRows(detail: ServerDetail): ProtocolSettingRow[] {
   return detail.protocols
     .filter((p) => p.serverProtocolId || p.globallyEnabled)
     .map((p) => ({

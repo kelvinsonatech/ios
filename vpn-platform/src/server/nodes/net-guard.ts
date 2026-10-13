@@ -28,7 +28,8 @@ for (const [net, prefix] of [
 for (const [net, prefix] of [
   ["::", 128],
   ["::1", 128],
-  ["::ffff:0:0", 96],
+  // Note: no ::ffff:0:0/96 rule — BlockList would match every IPv4 address against it.
+  // IPv4-mapped IPv6 addresses are unwrapped and checked as IPv4 instead.
   ["64:ff9b::", 96],
   ["100::", 64],
   ["2001:db8::", 32],
@@ -42,6 +43,8 @@ for (const [net, prefix] of [
 export function isRestrictedAddress(ip: string): boolean {
   const family = isIP(ip);
   if (family === 0) return true;
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip);
+  if (mapped) return isRestrictedAddress(mapped[1]!);
   return blocked.check(ip, family === 4 ? "ipv4" : "ipv6");
 }
 

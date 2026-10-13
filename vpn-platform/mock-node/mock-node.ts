@@ -215,7 +215,8 @@ export async function startMockNode(opts: MockNodeOptions) {
     const url = req.url ?? "/";
     const method = (req.method ?? "GET").toUpperCase();
     const pathOnly = url.split("?")[0]!;
-    res.on("finish", () => state.requestLog.push({ method, path: pathOnly, status: res.statusCode }));
+    // "close" also fires when the client gave up (timeout), so every received request is logged.
+    res.on("close", () => state.requestLog.push({ method, path: pathOnly, status: res.statusCode }));
     let body = "";
     try {
       body = await readBody(req);

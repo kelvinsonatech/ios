@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { AlertTriangleIcon, CheckCircle2Icon, PencilIcon, XCircleIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/admin/page-header";
 import { CompatibilityBadge } from "@/components/admin/status-badge";
 import { requirePermission } from "@/server/auth/guards";
