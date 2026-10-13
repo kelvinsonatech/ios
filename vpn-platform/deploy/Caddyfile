@@ -1,0 +1,6 @@
+# TLS termination and reverse proxy. Caddy obtains certificates automatically for SITE_DOMAIN.
+# It replaces X-Forwarded-For from untrusted clients, so the app (TRUSTED_PROXY_HOPS=1) sees real client IPs.
+{$SITE_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
