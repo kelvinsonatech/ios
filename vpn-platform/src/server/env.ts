@@ -30,8 +30,12 @@ const schema = z.object({
   SESSION_ABSOLUTE_HOURS: z.coerce.number().int().positive().default(12),
   LOGIN_MAX_FAILURES: z.coerce.number().int().positive().default(5),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
-  /** Trust X-Forwarded-For from the reverse proxy in front of the app. */
-  TRUST_PROXY: bool,
+  /**
+   * Number of reverse proxies in front of the app that append to X-Forwarded-For. The client IP is
+   * taken from that position counting from the right (1 = the proxy directly in front, e.g. Caddy/nginx).
+   * The app must not be exposed directly to the internet, or client IPs can be spoofed.
+   */
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(1),
 
   /** Node (VPN server) communication. */
   NODE_CONNECT_TIMEOUT_MS: z.coerce.number().int().positive().default(5_000),

@@ -416,8 +416,14 @@ export const provisioningRequests = pgTable(
     inputDigest: text("input_digest").notNull(),
     /** Encrypted user input (may contain a password). Cleared when the request reaches a final state. */
     inputEncrypted: text("input_encrypted"),
-    /** SHA-256 of the one-time claim token that lets the requester fetch the result. */
+    /** SHA-256 of the claim token that lets the requester fetch the result. */
     claimTokenHash: text("claim_token_hash"),
+    /**
+     * Encrypted presented result (may contain passwords/keys/config files), kept only for
+     * PROVISION_RESULT_TTL_SECONDS so the requester can retrieve it, then erased by the sweeper.
+     */
+    resultEncrypted: text("result_encrypted"),
+    resultExpiresAt: timestamp("result_expires_at", { withTimezone: true }),
     clientIpHash: text("client_ip_hash"),
     requestedByAdminId: uuid("requested_by_admin_id").references(() => admins.id, { onDelete: "set null" }),
     errorCode: text("error_code"),
