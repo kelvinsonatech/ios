@@ -12,3 +12,6 @@ playwright-report/
 
 # Extra dev servers (NEXT_DIST_DIR)
 /.next-*/
+
+# Local Redis snapshot
+dump.rdb

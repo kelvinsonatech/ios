@@ -14,6 +14,9 @@ export const PERMISSIONS = [
   "logs:view",
   "audit:view",
   "admins:manage",
+  "settings:manage",
+  "reports:view",
+  "reports:manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -21,9 +24,9 @@ export type Permission = (typeof PERMISSIONS)[number];
 /**
  * Role → permission matrix.
  *  - Super Admin:    everything, including administrator management.
- *  - Administrator:  everything except managing administrators.
- *  - Server Manager: add/edit/operate servers and their protocols; read accounts and logs.
- *  - Support:        read servers/protocols, manage accounts (revoke/renew), read logs.
+ *  - Administrator:  everything except managing administrators (site settings included).
+ *  - Server Manager: add/edit/operate servers and their protocols; read accounts and logs; handle reports.
+ *  - Support:        read servers/protocols, manage accounts (revoke/renew), read logs; handle reports.
  */
 export const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
   super_admin: PERMISSIONS,
@@ -37,8 +40,19 @@ export const ROLE_PERMISSIONS: Record<AdminRole, readonly Permission[]> = {
     "protocols:view",
     "accounts:view",
     "logs:view",
+    "reports:view",
+    "reports:manage",
   ],
-  support: ["dashboard:view", "servers:view", "protocols:view", "accounts:view", "accounts:manage", "logs:view"],
+  support: [
+    "dashboard:view",
+    "servers:view",
+    "protocols:view",
+    "accounts:view",
+    "accounts:manage",
+    "logs:view",
+    "reports:view",
+    "reports:manage",
+  ],
 };
 
 export const ROLE_LABELS: Record<AdminRole, string> = {

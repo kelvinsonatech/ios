@@ -1,4 +1,4 @@
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/server/db";
 import {
   protocols,
@@ -20,6 +20,7 @@ import { getNodeDriver } from "@/server/nodes/connection";
 import type { NodeHealth, NodeInfo, NodeProtocol, NodeStats } from "@/server/nodes/contract";
 import { isNodeError, NodeError } from "@/server/nodes/errors";
 import { matchProtocols, normalizeIdentifier } from "@/server/protocols/identifiers";
+import { getSiteSettings } from "@/server/settings/service";
 import { refreshServerStatus } from "./status";
 
 export interface ConnectionCheck {
@@ -53,7 +54,7 @@ export interface SyncResult extends ConnectionCheck {
   removed: string[];
 }
 
-function mapHealth(info: NodeInfo | undefined, health: NodeHealth | undefined): ServerHealthStatus {
+export function mapHealth(info: NodeInfo | undefined, health: NodeHealth | undefined): ServerHealthStatus {
   if (health?.status === "offline") return "offline";
   if (health?.status === "degraded" || info?.status === "degraded" || info?.status === "maintenance") return "degraded";
   return "online";
@@ -93,6 +94,7 @@ async function recordFailure(server: Server, error: NodeError | Error, event: "s
       .set({
         healthStatus: "offline",
         lastHealthCheckAt: now,
+        lastLatencyMs: null,
         lastError: safe,
         consecutiveFailures: server.consecutiveFailures + 1,
       })
@@ -120,7 +122,8 @@ async function recordFailure(server: Server, error: NodeError | Error, event: "s
   return { code, message: safe };
 }
 
-async function logTransition(server: Server, t: { previous: string; current: string } | null) {
+/** Log server.offline / server.restored on public status transitions only (never on every check). */
+export async function logTransition(server: Pick<Server, "id" | "name">, t: { previous: string; current: string } | null) {
   if (!t || t.previous === t.current) return;
   if (t.current === "offline" && (t.previous === "online" || t.previous === "full")) {
     await logEvent({ event: "server.offline", status: "failure", level: "warning", serverId: server.id, message: `${server.name} is offline.` });
@@ -129,7 +132,7 @@ async function logTransition(server: Server, t: { previous: string; current: str
   }
 }
 
-async function fetchOptional<T>(fn: () => Promise<T>): Promise<{ value?: T; error?: NodeError }> {
+export async function fetchOptional<T>(fn: () => Promise<T>): Promise<{ value?: T; error?: NodeError }> {
   try {
     return { value: await fn() };
   } catch (e) {
@@ -172,17 +175,19 @@ export async function testConnection(serverId: string, actor?: AuditActor): Prom
   }
 }
 
-async function recordSuccess(
+/** Store a successful check (connect, sync, test or the health monitor) and its health snapshot. */
+export async function recordSuccess(
   server: Server,
   info: NodeInfo,
   health: NodeHealth | undefined,
   compatibility: ServerCompatibility,
   latencyMs: number,
   extra: Partial<typeof servers.$inferInsert> = {},
-) {
+): Promise<{ previous: string; current: string } | null> {
   const now = new Date();
   const healthStatus = mapHealth(info, health);
   let transition: Awaited<ReturnType<typeof refreshServerStatus>> = null;
+  const services = Object.entries(health?.services ?? {});
   await db().transaction(async (tx) => {
     await tx
       .update(servers)
@@ -196,11 +201,27 @@ async function recordSuccess(
         lastSeenAt: now,
         lastSuccessfulConnectionAt: now,
         lastHealthCheckAt: now,
+        lastLatencyMs: latencyMs,
         lastError: null,
         consecutiveFailures: 0,
         ...extra,
       })
       .where(eq(servers.id, server.id));
+    // Per-protocol service state from the health report ("stopped" hides the create form publicly).
+    for (const state of ["running", "stopped"] as const) {
+      const ids = services.filter(([, v]) => v === state).map(([k]) => k);
+      if (!ids.length) continue;
+      await tx
+        .update(serverProtocols)
+        .set({ serviceStatus: state })
+        .where(
+          and(
+            eq(serverProtocols.serverId, server.id),
+            eq(serverProtocols.detected, true),
+            inArray(serverProtocols.nodeIdentifier, ids),
+          ),
+        );
+    }
     await tx.insert(serverHealth).values({
       serverId: server.id,
       checkedAt: now,
@@ -221,6 +242,7 @@ async function recordSuccess(
     transition = await refreshServerStatus(tx, server.id);
   });
   await logTransition(server, transition);
+  return transition;
 }
 
 function primaryPort(ports: PortMap): number | null {
@@ -337,6 +359,8 @@ async function applyDetection(
   const existingByProtocol = new Map(existing.map((r) => [r.protocolId, r]));
   const now = new Date();
   const autoEnable = server.lifecycle === "draft" && compatibility !== "unsupported";
+  // New server/protocol rows start with the site's default creation quota (Admin → Settings).
+  const { defaultLimit } = (await getSiteSettings()).quota;
 
   const rows: DetectedProtocolRow[] = [];
   const added: string[] = [];
@@ -372,6 +396,7 @@ async function applyDetection(
             serverId: server.id,
             protocolId: p.id,
             enabled: autoEnable,
+            quotaLimit: defaultLimit,
             firstDetectedAt: now,
           });
         }

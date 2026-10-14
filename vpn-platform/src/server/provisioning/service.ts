@@ -24,12 +24,14 @@ import type { NodeAccount } from "@/server/nodes/contract";
 import { isNodeError, NodeError } from "@/server/nodes/errors";
 import { getProtocolWithFields } from "@/server/protocols/service";
 import { refreshServerStatus } from "@/server/servers/status";
+import { getSiteSettings } from "@/server/settings/service";
 import { AdapterResponseError } from "./adapters/base";
 import { getAdapter } from "./adapters/registry";
 import { releaseCapacity, reserveCapacity } from "./capacity";
 import { buildInputSchema, toNormalizedInput } from "./input";
 import { presentAccount, safeMetadata } from "./present";
 import { enqueueProvisioning } from "./queue";
+import { formatLocalTime, quotaWindow } from "./quota";
 import type { AdapterContext, NormalizedAccountInput, PresentedAccount, ProtocolDefinition } from "./types";
 
 /**
@@ -52,14 +54,29 @@ export class ProvisioningError extends Error {
       | "SERVER_UNAVAILABLE"
       | "PROTOCOL_UNAVAILABLE"
       | "CAPACITY_REACHED"
+      | "QUOTA_REACHED"
       | "IDEMPOTENCY_CONFLICT"
       | "INVALID_IDEMPOTENCY_KEY",
     message: string,
     readonly httpStatus: number,
     readonly fieldErrors?: Record<string, string[]>,
+    readonly extra: {
+      /** QUOTA_REACHED: when the creation quota of the server/protocol resets. */
+      resetsAt?: Date;
+      /** RATE_LIMITED: seconds until the client may try again. */
+      retryAfterSeconds?: number;
+    } = {},
   ) {
     super(message);
     this.name = "ProvisioningError";
+  }
+
+  get resetsAt() {
+    return this.extra.resetsAt;
+  }
+
+  get retryAfterSeconds() {
+    return this.extra.retryAfterSeconds;
   }
 }
 
@@ -148,9 +165,13 @@ export async function requestAccount(p: AccountRequestParams): Promise<AccountRe
           ? `You have reached today's limit for ${def.name} accounts. Please try again tomorrow.`
           : "Too many requests. Please wait a minute and try again.",
         429,
+        undefined,
+        { retryAfterSeconds: Math.max(!burst.allowed ? burst.resetSeconds : 0, !daily.allowed ? daily.resetSeconds : 0, 1) },
       );
     }
   }
+  const settings = await getSiteSettings();
+  const window = quotaWindow(new Date(), settings.quota.resetTimes, settings.quota.timezone);
 
   // CHECK SERVER / PROTOCOL / CAPACITY, CREATE PENDING RECORDS (one transaction, row locks)
   const requestId = randomUUID();
@@ -175,8 +196,25 @@ export async function requestAccount(p: AccountRequestParams): Promise<AccountRe
       if (!sp || !sp.enabled || !sp.detected || sp.serviceStatus === "stopped") {
         throw new ProvisioningError("PROTOCOL_UNAVAILABLE", `${def.name} is not available on this server.`, 409);
       }
-      if (!(await reserveCapacity(tx, server.id, sp.id))) {
-        throw new ProvisioningError("CAPACITY_REACHED", "This server is full. Please choose another server.", 409);
+      const reservation = await reserveCapacity(tx, server.id, sp.id, window);
+      if (!reservation.ok) {
+        if (reservation.reason === "quota_reached") {
+          const resetsAt = reservation.resetsAt ?? window.end;
+          throw new ProvisioningError(
+            "QUOTA_REACHED",
+            `All ${def.name} slots on this server are taken for now. New slots open at ${formatLocalTime(resetsAt, settings.quota.timezone)} (${settings.quota.timezone}).`,
+            409,
+            undefined,
+            { resetsAt },
+          );
+        }
+        throw new ProvisioningError(
+          "CAPACITY_REACHED",
+          reservation.reason === "protocol_full"
+            ? `${def.name} is full on this server. Please choose another server.`
+            : "This server is full. Please choose another server.",
+          409,
+        );
       }
       const [account] = await tx
         .insert(vpnAccounts)
@@ -188,6 +226,7 @@ export async function requestAccount(p: AccountRequestParams): Promise<AccountRe
           durationDays: input.durationDays,
           clientIpHash: ipHash,
           holdsCapacity: true,
+          quotaWindowStart: reservation.quotaWindowStart,
         })
         .returning({ id: vpnAccounts.id });
       await tx.insert(provisioningRequests).values({
@@ -312,7 +351,7 @@ export async function executeCreate(requestId: string): Promise<void> {
   const [claimed] = await db()
     .update(provisioningRequests)
     .set({ state: "in_flight", attempts: sql`${provisioningRequests.attempts} + 1`, startedAt: sql`coalesce(${provisioningRequests.startedAt}, now())` })
-    .where(and(eq(provisioningRequests.id, requestId), eq(provisioningRequests.state, "queued")))
+    .where(and(eq(provisioningRequests.id, requestId), eq(provisioningRequests.state, "queued"), eq(provisioningRequests.operation, "create")))
     .returning();
   if (!claimed) {
     const [r] = await db().select({ state: provisioningRequests.state }).from(provisioningRequests).where(eq(provisioningRequests.id, requestId));
@@ -395,7 +434,7 @@ const MAX_RECONCILE_AGE_MS = 30 * 60_000;
 /** Resolve an uncertain create by asking the node whether it processed our request id. */
 export async function reconcile(requestId: string): Promise<void> {
   const l = await loadRequest(requestId);
-  if (!l || l.request.state !== "uncertain") return;
+  if (!l || l.request.state !== "uncertain" || l.request.operation !== "create") return;
   const started = Date.now();
   const age = Date.now() - (l.request.startedAt ?? l.request.createdAt).getTime();
   let input: NormalizedAccountInput;
@@ -529,7 +568,8 @@ async function finalizeFailure(
       .update(provisioningRequests)
       .set({ state: "failed", completedAt: new Date(), inputEncrypted: null, errorCode: code, errorMessage: userMessage })
       .where(eq(provisioningRequests.id, l.request.id));
-    if (!opts.keepCapacity) await releaseCapacity(tx, l.account.id);
+    // A definite failure gives the slot and the creation-quota slot back; an unknown outcome keeps both.
+    if (!opts.keepCapacity) await releaseCapacity(tx, l.account.id, { refundQuota: true });
   });
   await logEvent({
     event: "account.failed",
@@ -555,15 +595,26 @@ export type RequestStatus =
   | { status: "active"; account: PresentedAccount | null };
 
 export async function getRequestStatus(requestId: string, claimToken: string): Promise<RequestStatus | null> {
+  return (await getRequestResult(requestId, claimToken))?.status ?? null;
+}
+
+/** getRequestStatus plus the account id (for the account's avatar). Null for unknown ids or a wrong token. */
+export async function getRequestResult(requestId: string, claimToken: string): Promise<{ status: RequestStatus; accountId: string | null } | null> {
   if (!/^[0-9a-f-]{36}$/.test(requestId) || !/^[0-9a-f]{64}$/.test(claimToken)) return null;
   const [r] = await db().select().from(provisioningRequests).where(eq(provisioningRequests.id, requestId)).limit(1);
-  if (!r?.claimTokenHash || !safeEqual(r.claimTokenHash, sha256Hex(claimToken))) return null;
-  if (r.state === "failed") return { status: "failed", error: { code: r.errorCode ?? "FAILED", message: r.errorMessage ?? DEFAULT_USER_MESSAGE } };
-  if (r.state !== "succeeded") return { status: "pending" };
-  if (!r.resultEncrypted || !r.resultExpiresAt || r.resultExpiresAt < new Date()) return { status: "active", account: null };
+  if (!r?.claimTokenHash || r.operation !== "create" || !safeEqual(r.claimTokenHash, sha256Hex(claimToken))) return null;
+  const accountId = r.accountId;
+  if (r.state === "failed") {
+    return { accountId, status: { status: "failed", error: { code: r.errorCode ?? "FAILED", message: r.errorMessage ?? DEFAULT_USER_MESSAGE } } };
+  }
+  if (r.state !== "succeeded") return { accountId, status: { status: "pending" } };
+  if (!r.resultEncrypted || !r.resultExpiresAt || r.resultExpiresAt < new Date()) return { accountId, status: { status: "active", account: null } };
   return {
-    status: "active",
-    account: JSON.parse(decryptSecret(r.resultEncrypted, EncryptionContext.provisioningResult(r.id))) as PresentedAccount,
+    accountId,
+    status: {
+      status: "active",
+      account: JSON.parse(decryptSecret(r.resultEncrypted, EncryptionContext.provisioningResult(r.id))) as PresentedAccount,
+    },
   };
 }
 
@@ -601,7 +652,13 @@ export async function sweep(): Promise<{ requeued: number; reconciling: number; 
   const stuckQueued = await db()
     .select({ id: provisioningRequests.id, attempts: provisioningRequests.attempts })
     .from(provisioningRequests)
-    .where(and(eq(provisioningRequests.state, "queued"), lt(provisioningRequests.updatedAt, new Date(now - 120_000))))
+    .where(
+      and(
+        eq(provisioningRequests.operation, "create"),
+        eq(provisioningRequests.state, "queued"),
+        lt(provisioningRequests.updatedAt, new Date(now - 120_000)),
+      ),
+    )
     .limit(100);
   for (const r of stuckQueued) await enqueueProvisioning({ type: "create", requestId: r.id });
 
@@ -610,6 +667,7 @@ export async function sweep(): Promise<{ requeued: number; reconciling: number; 
     .set({ state: "uncertain", errorCode: "WORKER_INTERRUPTED", errorMessage: "Worker stopped while the request was in flight." })
     .where(
       and(
+        eq(provisioningRequests.operation, "create"),
         eq(provisioningRequests.state, "in_flight"),
         lt(provisioningRequests.updatedAt, new Date(now - env().NODE_PROVISION_TIMEOUT_MS - 60_000)),
       ),
@@ -618,7 +676,13 @@ export async function sweep(): Promise<{ requeued: number; reconciling: number; 
   const uncertain = await db()
     .select({ id: provisioningRequests.id })
     .from(provisioningRequests)
-    .where(and(eq(provisioningRequests.state, "uncertain"), lt(provisioningRequests.updatedAt, new Date(now - 120_000))))
+    .where(
+      and(
+        eq(provisioningRequests.operation, "create"),
+        eq(provisioningRequests.state, "uncertain"),
+        lt(provisioningRequests.updatedAt, new Date(now - 120_000)),
+      ),
+    )
     .limit(100);
   const toReconcile = [...new Set([...stalled, ...uncertain].map((r) => r.id))];
   for (const id of toReconcile) await enqueueProvisioning({ type: "reconcile", requestId: id });

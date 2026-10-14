@@ -12,6 +12,29 @@ const nullableText = (max: number) =>
     .nullish()
     .transform((v) => (v ? v : null));
 
+/**
+ * Public URLs are /<protocol slug>/..., so a protocol slug must never shadow a static public route
+ * or framework path. Keep in sync with src/app/(public) and src/proxy.ts.
+ */
+export const RESERVED_PROTOCOL_SLUGS: readonly string[] = [
+  "about",
+  "contact",
+  "privacy",
+  "terms",
+  "acceptable-use",
+  "report",
+  "server-status",
+  "admin",
+  "api",
+  "sitemap.xml",
+  "robots.txt",
+  "_next",
+];
+
+export function isReservedProtocolSlug(slug: string): boolean {
+  return RESERVED_PROTOCOL_SLUGS.includes(slug.trim().toLowerCase());
+}
+
 function isSafeRegex(p: string) {
   if (p.length > 200) return false;
   try {
@@ -78,7 +101,12 @@ export const outputFieldSchema = z.object({
 export const protocolSchema = z
   .object({
     name: z.string().trim().min(2).max(48),
-    slug: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9-]{0,47}$/, "Lowercase letters, digits and -"),
+    slug: z
+      .string()
+      .trim()
+      .toLowerCase()
+      .regex(/^[a-z0-9][a-z0-9-]{0,47}$/, "Lowercase letters, digits and -")
+      .refine((s) => !isReservedProtocolSlug(s), "This name is reserved for a page of the website. Choose another slug."),
     description: z.string().trim().max(300).default(""),
     icon: z.enum(PROTOCOL_ICON_NAMES),
     category: z.enum(["ssh", "v2ray", "vpn", "proxy"]),
