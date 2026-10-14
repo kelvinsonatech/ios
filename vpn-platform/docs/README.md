@@ -12,3 +12,4 @@ Answers to PRD §50 ("first produce …"), matching what is implemented in this 
 | 6 | [Security boundaries](06-security.md) | 10 security boundaries |
 | 7 | [Roadmap & status](07-roadmap.md) | 12 implementation roadmap |
 | 8 | [Request: your server script](08-server-script-intake.md) | §43 — the STOP point before real provisioning |
+| 10 | [Prompt: add a web API to your VPN script](10-script-api-prompt.md) | Copy-paste instructions for the AI tool that built your script: endpoints, signing, JSON formats, tests |
