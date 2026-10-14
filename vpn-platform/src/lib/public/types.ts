@@ -39,6 +39,8 @@ export interface PublicServerCard {
   slug: string;
   /** Display name set by the admin ("Germany 01"). */
   name: string;
+  /** VPN hostname users connect to; null unless settings.display.showHostnames is on. */
+  hostname: string | null;
   country: PublicCountry;
   city: string | null;
   region: string | null;
@@ -142,7 +144,7 @@ export interface SiteStats {
 /** Settings subset needed by public pages (no internal knobs such as health intervals). */
 export type PublicSiteSettings = Pick<
   SiteSettings,
-  "siteName" | "tagline" | "seoDescription" | "announcement" | "contact" | "rules" | "avatarStyle"
+  "siteName" | "tagline" | "seoDescription" | "announcement" | "contact" | "rules" | "avatarStyle" | "display"
 > & {
   quota: Pick<SiteSettings["quota"], "resetTimes" | "timezone">;
   /** Public Turnstile site key when captcha is enabled, else null. */
@@ -243,4 +245,20 @@ export interface CreateReportRequest {
   message: string;
   contactEmail: string | null;
   captchaToken?: string | null;
+}
+
+/**
+ * Non-secret summary of an account the visitor created, kept only in their own browser
+ * (localStorage, key "vl:my-accounts") for the "My accounts" page. Never contains passwords,
+ * UUIDs, keys, links or configs.
+ */
+export interface SavedAccountSummary {
+  /** requestId of the creation, used as a stable key. */
+  id: string;
+  protocol: { slug: string; name: string };
+  server: { name: string; href: string; countryCode: string };
+  username: string | null;
+  avatar: string;
+  createdAt: string;
+  expiresAt: string;
 }

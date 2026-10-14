@@ -73,6 +73,15 @@ export const siteSettingsSchema = z.object({
   }),
   /** Short usage rules shown next to every account form ("No torrenting", ...). */
   rules: z.array(z.string().trim().min(1).max(80)).max(10),
+  display: z.object({
+    /**
+     * Show each server's VPN hostname on public listings (users receive it with their account anyway).
+     * The management API port is never shown and stays firewalled to the website.
+     */
+    showHostnames: z.boolean(),
+    /** Footer counters with accounts created in total and today. */
+    showStats: z.boolean(),
+  }),
 });
 
 export type SiteSettings = z.infer<typeof siteSettingsSchema>;
@@ -88,4 +97,5 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   avatarStyle: DEFAULT_AVATAR_STYLE,
   contact: { email: null, telegramUrl: null },
   rules: ["No torrenting or P2P", "No DDoS, hacking or carding", "One device per account"],
+  display: { showHostnames: true, showStats: true },
 };
