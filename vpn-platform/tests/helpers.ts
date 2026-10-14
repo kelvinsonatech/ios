@@ -41,6 +41,7 @@ export async function createServer(port: number, overrides: { maxAccounts?: numb
   return createServerDraft(
     {
       name: overrides.name ?? `Test ${counter} ${Date.now()}`,
+      slug: null,
       countryCode: "SG",
       city: "Singapore",
       region: "Asia",

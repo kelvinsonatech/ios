@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isCountryCode } from "@/lib/countries";
+import { SERVER_SLUG_PATTERN } from "@/lib/slug";
 import { nodeAuthMethod, nodeTlsMode } from "@/server/db/schema";
 import { nodeDrivers } from "@/server/nodes/drivers";
 
@@ -22,6 +23,14 @@ export const hostnameSchema = z
 
 export const serverDetailsSchema = z.object({
   name: z.string().trim().min(2, "Name is required").max(64),
+  /** Public URL segment ("de1"). Blank = generated from the country code on create, unchanged on edit. */
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .optional()
+    .transform((v) => (v ? v : null))
+    .refine((v) => !v || SERVER_SLUG_PATTERN.test(v), "Use lowercase letters, digits and hyphens, e.g. de1"),
   countryCode: z
     .string()
     .trim()
@@ -93,5 +102,7 @@ export const protocolSettingsSchema = z.array(
     protocolId: z.uuid(),
     enabled: z.boolean(),
     maxAccounts: z.number().int().min(1).max(100_000).nullable(),
+    /** Creation quota per reset period; null = none; omitted = unchanged. */
+    quotaLimit: z.number().int().min(1).max(100_000).nullable().optional(),
   }),
 );

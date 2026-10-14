@@ -46,6 +46,7 @@ export const provisioningOperation = pgEnum("provisioning_operation", ["create",
 export const provisioningState = pgEnum("provisioning_state", ["queued", "in_flight", "uncertain", "succeeded", "failed"]);
 export const logLevel = pgEnum("log_level", ["info", "warning", "error"]);
 export const protocolFieldType = pgEnum("protocol_field_type", ["text", "password", "select", "number", "duration"]);
+export const reportStatus = pgEnum("report_status", ["open", "resolved"]);
 
 export type AdminRole = (typeof adminRole.enumValues)[number];
 export type ServerLifecycle = (typeof serverLifecycle.enumValues)[number];
@@ -59,6 +60,7 @@ export type ProvisioningOperation = (typeof provisioningOperation.enumValues)[nu
 export type ProvisioningState = (typeof provisioningState.enumValues)[number];
 export type LogLevel = (typeof logLevel.enumValues)[number];
 export type ProtocolFieldType = (typeof protocolFieldType.enumValues)[number];
+export type ReportStatus = (typeof reportStatus.enumValues)[number];
 
 // ---------------------------------------------------------------------------
 // JSON column types
@@ -177,6 +179,8 @@ export const servers = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    /** Public URL segment, e.g. "de1" in /vless/germany/de1. Unique among non-deleted servers. */
+    slug: text("slug").notNull(),
     hostname: text("hostname").notNull(),
     ipAddress: text("ip_address").notNull(),
     country: text("country").notNull(),
@@ -209,6 +213,8 @@ export const servers = pgTable(
     lastSuccessfulConnectionAt: timestamp("last_successful_connection_at", { withTimezone: true }),
     lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
     lastHealthCheckAt: timestamp("last_health_check_at", { withTimezone: true }),
+    /** Round-trip time of the last successful check (shown on the public status page). */
+    lastLatencyMs: integer("last_latency_ms"),
     /** Safe, user-presentable description of the last failure. */
     lastError: text("last_error"),
     consecutiveFailures: integer("consecutive_failures").notNull().default(0),
@@ -219,11 +225,13 @@ export const servers = pgTable(
   },
   (t) => [
     uniqueIndex("servers_name_unique").on(sql`lower(${t.name})`).where(sql`${t.deletedAt} is null`),
+    uniqueIndex("servers_slug_unique").on(t.slug).where(sql`${t.deletedAt} is null`),
     index("servers_status_idx").on(t.status),
     index("servers_lifecycle_idx").on(t.lifecycle),
     check("servers_max_accounts_positive", sql`${t.maxAccounts} > 0`),
     check("servers_current_accounts_non_negative", sql`${t.currentAccounts} >= 0`),
     check("servers_api_port_range", sql`${t.apiPort} between 1 and 65535`),
+    check("servers_slug_format", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{0,31}$'`),
   ],
 );
 
@@ -341,6 +349,14 @@ export const serverProtocols = pgTable(
     /** Per-protocol cap on this server; null = only the server-wide cap applies. */
     maxAccounts: integer("max_accounts"),
     currentAccounts: integer("current_accounts").notNull().default(0),
+    /**
+     * Creation quota per reset period (site setting `quota.resetTimes`), e.g. 50 new accounts every
+     * 12 hours. Null = no quota, only the active-account caps apply. `quota_used` counts accounts
+     * created since `quota_window_start`; a stale window is treated as 0 used (lazy reset).
+     */
+    quotaLimit: integer("quota_limit"),
+    quotaUsed: integer("quota_used").notNull().default(0),
+    quotaWindowStart: timestamp("quota_window_start", { withTimezone: true }),
     metadata: jsonb("metadata").$type<JsonObject>().notNull().default({}),
     firstDetectedAt: timestamp("first_detected_at", { withTimezone: true }),
     lastDetectedAt: timestamp("last_detected_at", { withTimezone: true }),
@@ -351,6 +367,8 @@ export const serverProtocols = pgTable(
     index("server_protocols_publish_idx").on(t.protocolId, t.enabled, t.detected),
     check("server_protocols_current_non_negative", sql`${t.currentAccounts} >= 0`),
     check("server_protocols_max_positive", sql`${t.maxAccounts} is null or ${t.maxAccounts} > 0`),
+    check("server_protocols_quota_positive", sql`${t.quotaLimit} is null or ${t.quotaLimit} > 0`),
+    check("server_protocols_quota_used_non_negative", sql`${t.quotaUsed} >= 0`),
   ],
 );
 
@@ -385,6 +403,8 @@ export const vpnAccounts = pgTable(
     clientIpHash: text("client_ip_hash"),
     /** True while this account occupies a capacity slot on its server/protocol. */
     holdsCapacity: boolean("holds_capacity").notNull().default(true),
+    /** Quota window this account was counted in (released on failure only within the same window). */
+    quotaWindowStart: timestamp("quota_window_start", { withTimezone: true }),
     ...timestamps,
   },
   (t) => [
@@ -544,6 +564,44 @@ export const auditLogs = pgTable(
   ],
 );
 
+// ---------------------------------------------------------------------------
+// Public site
+// ---------------------------------------------------------------------------
+
+/** Single-row table (id = 1) holding admin-editable site settings; validated by src/server/settings. */
+export const siteSettings = pgTable(
+  "site_settings",
+  {
+    id: integer("id").primaryKey().default(1),
+    data: jsonb("data").$type<JsonObject>().notNull().default({}),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedBy: uuid("updated_by").references(() => admins.id, { onDelete: "set null" }),
+  },
+  (t) => [check("site_settings_singleton", sql`${t.id} = 1`)],
+);
+
+/** "Report a problem" submissions from the public site. */
+export const serverReports = pgTable(
+  "server_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serverId: uuid("server_id").references(() => servers.id, { onDelete: "set null" }),
+    protocolId: uuid("protocol_id").references(() => protocols.id, { onDelete: "set null" }),
+    /** connection | slow | account | other */
+    category: text("category").notNull(),
+    message: text("message").notNull(),
+    /** Optional reply address supplied by the reporter. */
+    contactEmail: text("contact_email"),
+    status: reportStatus("status").notNull().default("open"),
+    clientIpHash: text("client_ip_hash"),
+    resolvedBy: uuid("resolved_by").references(() => admins.id, { onDelete: "set null" }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    adminNote: text("admin_note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("server_reports_status_created_idx").on(t.status, t.createdAt.desc()), index("server_reports_server_idx").on(t.serverId)],
+);
+
 export type Admin = typeof admins.$inferSelect;
 export type AdminSession = typeof adminSessions.$inferSelect;
 export type Server = typeof servers.$inferSelect;
@@ -557,3 +615,4 @@ export type ProvisioningRequest = typeof provisioningRequests.$inferSelect;
 export type ServerHealthRow = typeof serverHealth.$inferSelect;
 export type ProvisioningLog = typeof provisioningLogs.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
+export type ServerReport = typeof serverReports.$inferSelect;

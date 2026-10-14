@@ -41,6 +41,27 @@ async function assertNameAvailable(name: string, exceptId?: string) {
   if (rows.some((r) => r.id !== exceptId)) throw new UserFacingError(`A server named "${name}" already exists.`, "NAME_TAKEN");
 }
 
+async function assertSlugAvailable(slug: string, exceptId?: string) {
+  const rows = await db()
+    .select({ id: servers.id })
+    .from(servers)
+    .where(and(eq(servers.slug, slug), isNull(servers.deletedAt)));
+  if (rows.some((r) => r.id !== exceptId)) throw new UserFacingError(`The URL name "${slug}" is already used by another server.`, "SLUG_TAKEN");
+}
+
+/** Next free "<country code><n>" slug, e.g. de1, de2. */
+export async function nextServerSlug(countryCode: string): Promise<string> {
+  const prefix = countryCode.toLowerCase();
+  const rows = await db()
+    .select({ slug: servers.slug })
+    .from(servers)
+    .where(and(sql`${servers.slug} ~ ${`^${prefix}[0-9]+$`}`, isNull(servers.deletedAt)));
+  const used = new Set(rows.map((r) => Number(r.slug.slice(prefix.length))));
+  let n = 1;
+  while (used.has(n)) n++;
+  return `${prefix}${n}`;
+}
+
 function credentialValues(serverId: string, c: ConnectionInput, secret: string) {
   return {
     serverId,
@@ -62,12 +83,15 @@ export async function createServerDraft(details: ServerDetailsInput, conn: Conne
   checkAddress(details.ipAddress);
   await assertNameAvailable(details.name);
   if (!conn.apiSecret) throw new UserFacingError("API key / token is required.");
+  const slug = details.slug ?? (await nextServerSlug(details.countryCode));
+  if (details.slug) await assertSlugAvailable(slug);
 
   const server = await db().transaction(async (tx) => {
     const [s] = await tx
       .insert(servers)
       .values({
         name: details.name,
+        slug,
         hostname: details.hostname,
         ipAddress: details.ipAddress,
         country: countryName(details.countryCode),
@@ -105,11 +129,13 @@ export async function updateServerDetails(id: string, details: ServerDetailsInpu
   const before = await requireServer(id);
   checkAddress(details.ipAddress);
   await assertNameAvailable(details.name, id);
+  if (details.slug && details.slug !== before.slug) await assertSlugAvailable(details.slug, id);
   const updated = await db().transaction(async (tx) => {
     const [s] = await tx
       .update(servers)
       .set({
         name: details.name,
+        slug: details.slug ?? before.slug,
         hostname: details.hostname,
         ipAddress: details.ipAddress,
         country: countryName(details.countryCode),
@@ -246,7 +272,7 @@ export async function setServerLifecycle(id: string, target: ServerLifecycle, ac
 /** Per-server protocol switches and capacity. Only detected protocols can be enabled. */
 export async function updateServerProtocols(
   id: string,
-  updates: { protocolId: string; enabled: boolean; maxAccounts: number | null }[],
+  updates: { protocolId: string; enabled: boolean; maxAccounts: number | null; quotaLimit?: number | null }[],
   actor: AuditActor,
 ): Promise<void> {
   const server = await requireServer(id);
@@ -265,9 +291,13 @@ export async function updateServerProtocols(
       if (u.enabled && !row.sp.detected) {
         throw new UserFacingError(`${row.name} was not detected on this server. Install it on the server, then sync.`);
       }
-      if (row.sp.enabled === u.enabled && row.sp.maxAccounts === u.maxAccounts) continue;
-      await tx.update(serverProtocols).set({ enabled: u.enabled, maxAccounts: u.maxAccounts }).where(eq(serverProtocols.id, row.sp.id));
-      changes.push({ protocol: row.name, enabled: u.enabled, maxAccounts: u.maxAccounts });
+      const quotaLimit = u.quotaLimit === undefined ? row.sp.quotaLimit : u.quotaLimit;
+      if (row.sp.enabled === u.enabled && row.sp.maxAccounts === u.maxAccounts && row.sp.quotaLimit === quotaLimit) continue;
+      await tx
+        .update(serverProtocols)
+        .set({ enabled: u.enabled, maxAccounts: u.maxAccounts, quotaLimit })
+        .where(eq(serverProtocols.id, row.sp.id));
+      changes.push({ protocol: row.name, enabled: u.enabled, maxAccounts: u.maxAccounts, quotaLimit });
     }
   });
   if (changes.length === 0) return;

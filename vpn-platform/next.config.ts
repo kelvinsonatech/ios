@@ -13,6 +13,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Lets several dev servers run side by side (e.g. NEXT_DIST_DIR=.next-qa next dev -p 3101).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   poweredByHeader: false,
   reactStrictMode: true,
   // Native / long-lived server packages must not be bundled into route chunks.

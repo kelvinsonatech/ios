@@ -5,7 +5,7 @@ const config = [
   ...nextVitals,
   ...nextTs,
   {
-    ignores: [".next/**", "dist/**", "node_modules/**", "drizzle/**", "next-env.d.ts"],
+    ignores: [".next/**", ".next-*/**", "dist/**", "node_modules/**", "drizzle/**", "next-env.d.ts"],
   },
   {
     // Server-only modules must never be imported from client components.

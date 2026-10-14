@@ -9,3 +9,6 @@ next-env.d.ts
 .env.*.local
 test-results/
 playwright-report/
+
+# Extra dev servers (NEXT_DIST_DIR)
+/.next-*/
