@@ -15,7 +15,8 @@ read files.
 ## Task
 
 Add a small **HTTP API service** (I'll call it the "node agent") to my existing VPN install
-script. It runs on every VPS where my script is installed. My central website calls it to create,
+script. My script supports these protocols: **SSH, SSH SSL (with payload), SlowDNS, VMess, VLESS,
+Trojan, Hysteria 1, Hysteria 2 and ZIVPN UDP**. It runs on every VPS where my script is installed. My central website calls it to create,
 look up, delete and renew VPN/SSH accounts and to check the server's health.
 
 **Very important rules:**
@@ -122,25 +123,22 @@ An error response means **nothing was changed**: no account was created or modif
 
 ## 5. Protocol identifiers
 
-Report each installed protocol with one of these ids (the website maps them automatically):
+Report each installed protocol with exactly these ids:
 
-| Protocol | Use this id |
-| --- | --- |
-| SSH (OpenSSH / Dropbear) | `ssh` |
-| SSH over SSL/TLS (stunnel) | `ssh-ssl` |
-| SSH over WebSocket | `ssh-websocket` |
-| SlowDNS / DNSTT | `slowdns` |
-| UDP Custom | `udp-custom` |
-| OpenVPN | `openvpn` |
-| WireGuard | `wireguard` |
-| Shadowsocks | `shadowsocks` |
-| V2Ray/Xray VMess | `vmess` |
-| V2Ray/Xray VLESS | `vless` |
-| Trojan | `trojan` |
-| NoobzVPN | `noobzvpn` |
+| Protocol in my script | Use this id | Notes |
+| --- | --- | --- |
+| SSH (OpenSSH / Dropbear, incl. WebSocket ports if my script has them) | `ssh` | one Linux user |
+| SSH SSL with payload (stunnel / TLS + HTTP payload for HTTP Injector, HTTP Custom ...) | `ssh-ssl` | same kind of Linux user |
+| SlowDNS (DNSTT) | `slowdns` | same kind of Linux user |
+| VMess (Xray/V2Ray) | `vmess` | |
+| VLESS (Xray/V2Ray) | `vless` | |
+| Trojan (Xray/Trojan-Go) | `trojan` | |
+| Hysteria 1 | `hysteria` | |
+| Hysteria 2 | `hysteria2` | |
+| ZIVPN UDP | `zivpn` | password-based (the ZIVPN app) |
 
-For any other protocol, use a short lowercase id such as `hysteria2`; I can map it in the admin
-panel.
+Only report protocols that are actually installed on that server. If my script has protocols that
+are not in this table, report them with a short lowercase id and tell me which ones.
 
 ## 6. Endpoints
 
@@ -155,7 +153,7 @@ panel.
   "public_ip": "203.0.113.10",
   "country": "DE",
   "server_time": "2026-10-14T12:00:00Z",
-  "protocols": ["ssh", "ssh-websocket", "vless", "vmess", "trojan", "wireguard"],
+  "protocols": ["ssh", "ssh-ssl", "slowdns", "vmess", "vless", "trojan", "hysteria", "hysteria2", "zivpn"],
   "capabilities": {
     "idempotency": true,
     "lookup_by_request_id": true,
@@ -183,11 +181,13 @@ panel.
   "memory": {"used_bytes": 812000000, "total_bytes": 2048000000},
   "disk": {"used_bytes": 9400000000, "total_bytes": 40000000000},
   "load": [0.21, 0.18, 0.12],
-  "services": {"ssh": "running", "xray": "running", "openvpn": "stopped"}
+  "services": {"ssh": "running", "dropbear": "running", "stunnel4": "running", "xray": "running",
+               "hysteria": "running", "hysteria2": "running", "zivpn": "running", "slowdns": "stopped"}
 }}
 ```
 
-Service values are `running`, `stopped` or `unknown` (use `systemctl is-active`).
+Service values are `running`, `stopped` or `unknown` (use `systemctl is-active` on the service names
+my script actually installs; the names above are examples).
 
 ### `GET /api/v1/protocols` (recommended)
 
@@ -196,7 +196,8 @@ Service values are `running`, `stopped` or `unknown` (use `systemctl is-active`)
   {"id": "vless", "installed": true, "running": true,
    "ports": {"tls": [443], "none": [80]}, "transports": ["ws", "grpc"],
    "current_accounts": 20, "max_accounts": null, "metadata": {}},
-  {"id": "udp-custom", "installed": true, "running": true, "ports": {"udp_custom": "1-65535"}}
+  {"id": "hysteria2", "installed": true, "running": true, "ports": {"udp": [8443]}},
+  {"id": "zivpn", "installed": true, "running": true, "ports": {"udp": "6000-19999"}}
 ]}}
 ```
 
@@ -218,6 +219,13 @@ Request from the website:
 ```
 
 - `protocol` is one of the ids this server reported.
+- Which fields the website sends:
+  - `ssh`, `ssh-ssl`, `slowdns`: `username` and `password` (a Linux user; one user normally works on
+    all SSH ports).
+  - `vmess`, `vless`, `trojan`: `username` only (used as the account name/remark). Generate the
+    UUID (VMess/VLESS) or password (Trojan) on the server and return it.
+  - `hysteria`, `hysteria2`, `zivpn`: `username` (account name) and optionally `password`. If no
+    password is sent, generate a strong one on the server and return it in `config.password`.
 - `username` and `password` are present only for protocols that use them. **Validate again on the
   server**:
   - username: `^[a-z][a-z0-9_]{2,31}$`, and refuse system names such as `root`, `admin`, `daemon`,
@@ -285,20 +293,39 @@ Apply the same idempotency rule to `request_id`.
 
 ## 7. The `config` object per protocol
 
-These are the keys the website reads. Fill in what my script produces; leave out keys that do not
-apply. Ports are numbers or lists of numbers (`[443, 8443]`) or a range string (`"1-65535"`).
+These are the keys the website reads. Fill in what my script produces and leave out keys that do not
+apply. Ports are a number, a list of numbers (`[443, 8443]`) or a range string (`"6000-19999"`).
+Always include `host` (the domain users connect to) and, where useful, `ip`.
 
-**SSH family** (`ssh`, `ssh-ssl`, `ssh-websocket`, `slowdns`, `udp-custom`):
+**`ssh`: SSH (OpenSSH / Dropbear / WebSocket):**
 
 ```json
 {"host": "de1.example.com", "ip": "203.0.113.10", "username": "traveller", "password": "S3cure-pass",
- "ports": {"openssh": [22], "dropbear": [109, 143], "ssl": [443, 777], "ws": [80], "ws_tls": [443],
-           "udp_custom": "1-65535", "slowdns": [53]},
- "slowdns": {"nameserver": "ns.de1.example.com", "public_key": "<dnstt public key>"},
- "payload": "GET / HTTP/1.1[crlf]Host: de1.example.com[crlf]Upgrade: websocket[crlf][crlf]"}
+ "ports": {"openssh": [22], "dropbear": [109, 143], "ws": [80], "ws_tls": [443]},
+ "payload": "GET / HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]"}
 ```
 
-**VMess / VLESS / Trojan:**
+**`ssh-ssl`: SSH SSL with payload:**
+
+```json
+{"host": "de1.example.com", "ip": "203.0.113.10", "username": "traveller", "password": "S3cure-pass",
+ "ports": {"ssl": [443, 777], "ws_tls": [443]},
+ "sni": "de1.example.com",
+ "payload": "GET wss://de1.example.com/ HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]"}
+```
+
+Use the payload template(s) my script already shows to users. If there are several, add them as
+`"payloads": [{"name": "WS TLS", "value": "..."}, ...]`.
+
+**`slowdns`: SlowDNS / DNSTT:**
+
+```json
+{"host": "de1.example.com", "ip": "203.0.113.10", "username": "traveller", "password": "S3cure-pass",
+ "ports": {"slowdns": [53, 5300], "openssh": [22]},
+ "slowdns": {"nameserver": "ns-de1.example.com", "public_key": "<dnstt server public key>"}}
+```
+
+**`vmess`, `vless`, `trojan`:**
 
 ```json
 {"host": "de1.example.com", "remark": "traveller",
@@ -311,37 +338,52 @@ apply. Ports are numbers or lists of numbers (`[443, 8443]`) or a range string (
  "links": [{"name": "WS TLS", "uri": "vless://...full share link..."}]}
 ```
 
-If my script already builds share links (`vmess://`, `vless://`, `trojan://`), put them in
-`links`. The website shows them with QR codes.
+Include one entry in `connections` per transport my script sets up for that protocol. If my script
+already builds share links (`vmess://`, `vless://`, `trojan://`), put them in `links`; the website
+shows them with QR codes.
 
-**Shadowsocks:**
-
-```json
-{"host": "de1.example.com", "port": 8388, "method": "chacha20-ietf-poly1305", "password": "...",
- "plugin": "", "plugin_opts": "", "uri": "ss://..."}
-```
-
-**WireGuard:** either the complete client file
+**`hysteria`: Hysteria 1:**
 
 ```json
-{"config_text": "[Interface]\nPrivateKey = ...\nAddress = 10.66.66.2/32\nDNS = 1.1.1.1\n\n[Peer]\nPublicKey = ...\nPresharedKey = ...\nEndpoint = de1.example.com:51820\nAllowedIPs = 0.0.0.0/0, ::/0\nPersistentKeepalive = 25\n"}
+{"host": "de1.example.com", "ip": "203.0.113.10", "port": 36712,
+ "protocol": "udp", "auth": "<auth string>", "obfs": "xplus", "obfs_password": "<obfs password or empty>",
+ "up_mbps": 100, "down_mbps": 100, "alpn": "hysteria", "sni": "de1.example.com", "insecure": true,
+ "uri": "hysteria://de1.example.com:36712?protocol=udp&auth=...&peer=de1.example.com&insecure=1&upmbps=100&downmbps=100&alpn=hysteria#traveller"}
 ```
 
-or the parts: `{"interface": {"address": "...", "dns": "...", "private_key": "..."}, "peer": {"public_key": "...", "preshared_key": "...", "endpoint": "host:51820", "allowed_ips": "0.0.0.0/0, ::/0", "persistent_keepalive": 25}}`
+Use my server's real values. `uri` follows the Hysteria 1 share-link format: host, port,
+`upmbps` and `downmbps` are required; `auth`, `peer` (SNI), `insecure`, `alpn`, `obfs` and
+`obfsParam` are optional. Leave out parameters my server does not use.
 
-**OpenVPN:**
+**`hysteria2`: Hysteria 2:**
 
 ```json
-{"host": "de1.example.com", "username": "traveller", "password": "...",
- "ports": {"tcp": [1194], "udp": [2200], "ssl": [990]},
- "configs": [{"name": "TCP", "filename": "de1-tcp.ovpn", "content": "client\ndev tun\n..."}]}
+{"host": "de1.example.com", "ip": "203.0.113.10", "port": 8443, "password": "<auth password>",
+ "obfs": {"type": "salamander", "password": "<obfs password>"}, "sni": "de1.example.com", "insecure": false,
+ "uri": "hysteria2://<url-encoded password>@de1.example.com:8443/?sni=de1.example.com&obfs=salamander&obfs-password=...&insecure=0#traveller"}
 ```
 
-**NoobzVPN:**
+`uri` follows the official Hysteria 2 URI scheme. URL-encode the password. If the server uses
+userpass authentication, the auth part is `username:password`. Include `obfs`/`obfs-password`
+only when obfuscation is enabled, and `pinSHA256` (lowercase hex) only when certificate pinning
+is used.
+
+**`zivpn`: ZIVPN UDP:**
 
 ```json
-{"host": "de1.example.com", "username": "traveller", "password": "...", "ports": {"tcp": [8080], "ssl": [8443]}}
+{"host": "de1.example.com", "ip": "203.0.113.10", "password": "<the user's ZIVPN password>",
+ "ports": {"udp": "6000-19999"}, "obfs": "zivpn"}
 ```
+
+ZIVPN accounts are entries in the password list of the ZIVPN server config. On the common ZIVPN
+installer that is `/etc/zivpn/config.json`, `"auth": {"mode": "passwords", "config": [...]}`, with
+UDP 6000-19999 forwarded to port 5667. Use whatever my script actually does:
+
+- Add the password to that list, restart or reload the `zivpn` service the way my script does, and
+  keep my script's own record of username, password and expiry.
+- Never write the password into the file with `sed` built from user input. Load the JSON, change
+  the list and write it back, under the lock from section 6.
+- Return the values the ZIVPN app needs: server address, password and UDP port range.
 
 ## 8. Security checklist (must all be true)
 
@@ -372,8 +414,10 @@ section 3 and checks:
 7. `DELETE /accounts/<account_id>` → `{"revoked": true}`; the user can no longer log in; a second
    DELETE → 404.
 8. A username `root` or `a; reboot` → 422 `VALIDATION_FAILED`, and nothing was executed.
-9. Repeat step 3 for every protocol my script supports and check that the returned values work in
-   a real client app.
+9. Repeat step 3 for every protocol (ssh, ssh-ssl, slowdns, vmess, vless, trojan, hysteria,
+   hysteria2, zivpn) and check that the returned values work in a real client app (HTTP Injector or
+   HTTP Custom for SSH and SSL payload, v2rayNG or NekoBox for VMess/VLESS/Trojan/Hysteria, the ZIVPN
+   app for ZIVPN).
 
 Signing helper for the tests:
 
