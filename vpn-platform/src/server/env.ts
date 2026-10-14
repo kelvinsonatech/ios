@@ -52,6 +52,16 @@ const schema = z.object({
   /** Provisioning. */
   PROVISION_RESULT_TTL_SECONDS: z.coerce.number().int().positive().default(3_600),
   PROVISION_MAX_ATTEMPTS: z.coerce.number().int().positive().default(3),
+
+  /**
+   * Captcha on the public forms (account creation, problem reports). "none" leaves them protected
+   * by rate limits only; "turnstile" uses Cloudflare Turnstile and needs both keys.
+   */
+  CAPTCHA_PROVIDER: z.enum(["none", "turnstile"]).default("none"),
+  /** Public Turnstile site key (sent to the browser). */
+  TURNSTILE_SITE_KEY: z.string().trim().optional(),
+  /** Turnstile secret key (server only, never sent to the browser or logged). */
+  TURNSTILE_SECRET_KEY: z.string().trim().optional(),
 });
 
 export type Env = z.infer<typeof schema>;
@@ -60,7 +70,15 @@ let cached: Env | undefined;
 
 export function env(): Env {
   if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
+  const parsed = schema
+    .superRefine((v, ctx) => {
+      if (v.CAPTCHA_PROVIDER === "turnstile") {
+        for (const key of ["TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"] as const) {
+          if (!v[key]) ctx.addIssue({ code: "custom", path: [key], message: `${key} is required when CAPTCHA_PROVIDER=turnstile` });
+        }
+      }
+    })
+    .safeParse(process.env);
   if (!parsed.success) {
     const details = parsed.error.issues.map((i) => `  - ${i.path.join(".")}: ${i.message}`).join("\n");
     throw new Error(`Invalid server configuration:\n${details}`);

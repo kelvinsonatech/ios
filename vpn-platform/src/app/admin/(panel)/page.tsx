@@ -3,6 +3,8 @@ import {
   AlertOctagonIcon,
   CalendarDaysIcon,
   ConstructionIcon,
+  ExternalLinkIcon,
+  FlagIcon,
   PlusIcon,
   ServerCrashIcon,
   ServerIcon,
@@ -40,13 +42,20 @@ export default async function DashboardPage() {
         title={`Welcome back, ${admin.name.split(" ")[0]}`}
         description="Fleet health, capacity and provisioning activity at a glance."
         actions={
-          can(admin.role, "servers:create") ? (
-            <Button asChild>
-              <Link href="/admin/servers/new">
-                <PlusIcon /> Add server
-              </Link>
+          <>
+            <Button asChild variant="outline">
+              <a href="/" target="_blank" rel="noopener">
+                <ExternalLinkIcon /> View public site
+              </a>
             </Button>
-          ) : null
+            {can(admin.role, "servers:create") ? (
+              <Button asChild>
+                <Link href="/admin/servers/new">
+                  <PlusIcon /> Add server
+                </Link>
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -71,9 +80,25 @@ export default async function DashboardPage() {
         <StatCard label="Offline" value={d.servers.offline} icon={<ServerCrashIcon />} tone={d.servers.offline ? "danger" : "default"} hint="Unreachable or unsupported" />
         <StatCard label="Maintenance" value={d.servers.maintenance} icon={<ConstructionIcon />} tone={d.servers.maintenance ? "warning" : "default"} hint={d.servers.disabled ? `${d.servers.disabled} disabled` : "New accounts paused"} />
         <StatCard label="Active accounts" value={formatNumber(d.accounts.active)} icon={<UsersIcon />} />
-        <StatCard label="Created today" value={formatNumber(d.accounts.today)} icon={<UserPlusIcon />} hint={d.accounts.failedToday ? `${d.accounts.failedToday} failed today` : "UTC day"} />
+        <StatCard
+          label="Created today"
+          value={formatNumber(d.accounts.today)}
+          icon={<UserPlusIcon />}
+          hint={d.accounts.failedToday ? `${d.accounts.failedToday} failed today` : `Since 00:00 ${d.today.timezone.replace(/_/g, " ")}`}
+        />
         <StatCard label="This month" value={formatNumber(d.accounts.month)} icon={<CalendarDaysIcon />} />
-        <StatCard label="Recent errors" value={d.recentErrors.length} icon={<AlertOctagonIcon />} tone={d.recentErrors.length ? "danger" : "default"} hint="Latest provisioning & server errors" />
+        {can(admin.role, "reports:view") ? (
+          <StatCard
+            label="Open reports"
+            value={formatNumber(d.reports.open)}
+            icon={<FlagIcon />}
+            tone={d.reports.open ? "warning" : "default"}
+            href="/admin/reports"
+            hint={d.reports.open ? "Problems reported by users" : `${formatNumber(d.reports.resolved)} resolved so far`}
+          />
+        ) : (
+          <StatCard label="Recent errors" value={d.recentErrors.length} icon={<AlertOctagonIcon />} tone={d.recentErrors.length ? "danger" : "default"} hint="Latest provisioning & server errors" />
+        )}
       </div>
 
       <div className="mt-6 grid items-start gap-6 lg:grid-cols-3">

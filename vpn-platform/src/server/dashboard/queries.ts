@@ -1,6 +1,8 @@
 import { and, desc, eq, gte, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { db } from "@/server/db";
-import { protocols, provisioningLogs, servers, vpnAccounts } from "@/server/db/schema";
+import { protocols, provisioningLogs, serverReports, servers, vpnAccounts, type ReportStatus } from "@/server/db/schema";
+import { startOfLocalDay } from "@/server/provisioning/quota";
+import { getSiteSettings } from "@/server/settings/service";
 
 const ACTIVITY_EVENTS = [
   "server.added",
@@ -15,16 +17,30 @@ const ACTIVITY_EVENTS = [
   "account.revoked",
 ];
 
+/** Problem reports per status (Admin → Reports tabs, dashboard). Queried here so the counters work on their own. */
+export async function countReportsByStatus(): Promise<Record<ReportStatus, number>> {
+  const rows = await db()
+    .select({ status: serverReports.status, count: sql<number>`count(*)::int` })
+    .from(serverReports)
+    .groupBy(serverReports.status);
+  const out: Record<ReportStatus, number> = { open: 0, resolved: 0 };
+  for (const r of rows) out[r.status] = r.count;
+  return out;
+}
+
 export async function getDashboardData() {
   const now = new Date();
   const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const twoWeeksAgo = new Date(startOfDay.getTime() - 13 * 86_400_000);
+  // "Created today" follows the site's quota time zone, so it matches the day users see on the public site.
+  const { timezone } = (await getSiteSettings()).quota;
+  const localDay = startOfLocalDay(now, timezone);
   // Raw sql fragments need explicit timestamptz parameters (Dates are only mapped for column operators).
-  const dayTs = sql`${startOfDay.toISOString()}::timestamptz`;
+  const dayTs = sql`${localDay.toISOString()}::timestamptz`;
   const monthTs = sql`${startOfMonth.toISOString()}::timestamptz`;
 
-  const [statusCounts, accountCounts, protocolUsage, capacity, recentErrors, activity, trend] = await Promise.all([
+  const [statusCounts, accountCounts, protocolUsage, capacity, recentErrors, activity, trend, reports] = await Promise.all([
     db()
       .select({ status: servers.status, count: sql<number>`count(*)::int` })
       .from(servers)
@@ -97,6 +113,7 @@ export async function getDashboardData() {
       .from(vpnAccounts)
       .where(and(isNotNull(vpnAccounts.activatedAt), gte(vpnAccounts.activatedAt, twoWeeksAgo)))
       .groupBy(sql`1`),
+    countReportsByStatus(),
   ]);
 
   const byStatus = Object.fromEntries(statusCounts.map((r) => [r.status, r.count])) as Record<string, number>;
@@ -118,6 +135,9 @@ export async function getDashboardData() {
       pending: byStatus.pending ?? 0,
     },
     accounts: accountCounts[0] ?? { active: 0, today: 0, month: 0, failedToday: 0 },
+    /** Start of "today" for the account counters, and the zone it is expressed in. */
+    today: { since: localDay, timezone },
+    reports,
     protocolUsage,
     capacity,
     recentErrors,
