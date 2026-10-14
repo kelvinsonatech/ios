@@ -15,3 +15,6 @@ playwright-report/
 
 # Local Redis snapshot
 dump.rdb
+
+# Python bytecode
+__pycache__/
