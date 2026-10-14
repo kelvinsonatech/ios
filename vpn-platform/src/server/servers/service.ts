@@ -62,6 +62,25 @@ export async function nextServerSlug(countryCode: string): Promise<string> {
   return `${prefix}${n}`;
 }
 
+/** Name of the unique index a Postgres unique violation (23505) refers to, if `e` is one. */
+function uniqueViolation(e: unknown): string | null {
+  let cur: unknown = e;
+  for (let i = 0; i < 4 && cur; i++) {
+    const c = cur as { code?: string; constraint_name?: string; constraint?: string };
+    if (c.code === "23505") return c.constraint_name ?? c.constraint ?? "";
+    cur = (cur as { cause?: unknown }).cause;
+  }
+  return null;
+}
+
+/** Turn a lost race on the name/slug unique indexes into the same errors as the pre-checks. */
+function rethrowConflict(e: unknown, name: string, slug: string): never {
+  const constraint = uniqueViolation(e);
+  if (constraint === "servers_slug_unique") throw new UserFacingError(`The URL name "${slug}" is already used by another server.`, "SLUG_TAKEN");
+  if (constraint === "servers_name_unique") throw new UserFacingError(`A server named "${name}" already exists.`, "NAME_TAKEN");
+  throw e;
+}
+
 function credentialValues(serverId: string, c: ConnectionInput, secret: string) {
   return {
     serverId,
@@ -83,10 +102,35 @@ export async function createServerDraft(details: ServerDetailsInput, conn: Conne
   checkAddress(details.ipAddress);
   await assertNameAvailable(details.name);
   if (!conn.apiSecret) throw new UserFacingError("API key / token is required.");
-  const slug = details.slug ?? (await nextServerSlug(details.countryCode));
-  if (details.slug) await assertSlugAvailable(slug);
+  if (details.slug) await assertSlugAvailable(details.slug);
 
-  const server = await db().transaction(async (tx) => {
+  // A generated slug can lose a race with a concurrent "Add server" for the same country: retry
+  // with the next free number. A slug the admin typed is never changed silently.
+  let server: Server | undefined;
+  for (let attempt = 0; !server; attempt++) {
+    const slug = details.slug ?? (await nextServerSlug(details.countryCode));
+    try {
+      server = await insertDraft(details, conn, slug, actor);
+    } catch (e) {
+      if (!details.slug && attempt < 3 && uniqueViolation(e) === "servers_slug_unique") continue;
+      rethrowConflict(e, details.name, slug);
+    }
+  }
+
+  await logEvent({
+    event: "server.added",
+    status: "success",
+    serverId: server.id,
+    adminId: actor.adminId,
+    message: `Server ${server.name} added (${server.hostname}, /${server.slug}).`,
+    details: { country: server.countryCode, slug: server.slug, driver: server.driver, authMethod: conn.authMethod, tlsMode: conn.tlsMode },
+  });
+  await audit(actor, "server.create", { targetType: "server", targetId: server.id, details: { name: server.name, hostname: server.hostname, slug: server.slug } });
+  return server;
+}
+
+async function insertDraft(details: ServerDetailsInput, conn: ConnectionInput, slug: string, actor: AuditActor): Promise<Server> {
+  return db().transaction(async (tx) => {
     const [s] = await tx
       .insert(servers)
       .values({
@@ -112,55 +156,46 @@ export async function createServerDraft(details: ServerDetailsInput, conn: Conne
     await tx.insert(serverCredentials).values({ ...credentialValues(s!.id, conn, conn.apiSecret!), createdBy: actor.adminId });
     return s!;
   });
-
-  await logEvent({
-    event: "server.added",
-    status: "success",
-    serverId: server.id,
-    adminId: actor.adminId,
-    message: `Server ${server.name} added (${server.hostname}).`,
-    details: { country: server.countryCode, driver: server.driver, authMethod: conn.authMethod, tlsMode: conn.tlsMode },
-  });
-  await audit(actor, "server.create", { targetType: "server", targetId: server.id, details: { name: server.name, hostname: server.hostname } });
-  return server;
 }
 
 export async function updateServerDetails(id: string, details: ServerDetailsInput, actor: AuditActor): Promise<Server> {
   const before = await requireServer(id);
   checkAddress(details.ipAddress);
   await assertNameAvailable(details.name, id);
-  if (details.slug && details.slug !== before.slug) await assertSlugAvailable(details.slug, id);
-  const updated = await db().transaction(async (tx) => {
-    const [s] = await tx
-      .update(servers)
-      .set({
-        name: details.name,
-        slug: details.slug ?? before.slug,
-        hostname: details.hostname,
-        ipAddress: details.ipAddress,
-        country: countryName(details.countryCode),
-        countryCode: details.countryCode,
-        city: details.city,
-        region: details.region,
-        provider: details.provider,
-        apiPort: details.apiPort,
-        apiBasePath: details.apiBasePath,
-        driver: details.driver,
-        maxAccounts: details.maxAccounts,
-        notes: details.notes,
-      })
-      .where(eq(servers.id, id))
-      .returning();
-    await refreshServerStatus(tx, id);
-    return s!;
-  });
+  const slug = details.slug ?? before.slug;
+  if (slug !== before.slug) await assertSlugAvailable(slug, id);
+  const updated = await db()
+    .transaction(async (tx) => {
+      const [s] = await tx
+        .update(servers)
+        .set({
+          name: details.name,
+          slug,
+          hostname: details.hostname,
+          ipAddress: details.ipAddress,
+          country: countryName(details.countryCode),
+          countryCode: details.countryCode,
+          city: details.city,
+          region: details.region,
+          provider: details.provider,
+          apiPort: details.apiPort,
+          apiBasePath: details.apiBasePath,
+          driver: details.driver,
+          maxAccounts: details.maxAccounts,
+          notes: details.notes,
+        })
+        .where(eq(servers.id, id))
+        .returning();
+      await refreshServerStatus(tx, id);
+      return s!;
+    })
+    .catch((e: unknown) => rethrowConflict(e, details.name, slug));
   // Address changes must not reuse pooled connections to the old address.
   if (before.ipAddress !== updated.ipAddress || before.hostname !== updated.hostname || before.apiPort !== updated.apiPort) {
     await closeAllNodeAgents();
   }
-  const changed = Object.keys(details).filter(
-    (k) => String((before as Record<string, unknown>)[k] ?? "") !== String((details as Record<string, unknown>)[k] ?? ""),
-  );
+  const after: Record<string, unknown> = { ...details, slug };
+  const changed = Object.keys(after).filter((k) => String((before as Record<string, unknown>)[k] ?? "") !== String(after[k] ?? ""));
   await logEvent({ event: "server.updated", status: "success", serverId: id, adminId: actor.adminId, message: `Server ${updated.name} updated.`, details: { changed } });
   await audit(actor, "server.update", { targetType: "server", targetId: id, details: { changed } });
   return updated;

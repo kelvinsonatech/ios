@@ -52,7 +52,7 @@ export function UserMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="flex items-center gap-2.5 font-normal">
-          {avatar ? <UserAvatar src={avatar} size={36} /> : null}
+          {avatar ? <UserAvatar src={avatar} size={40} /> : null}
           <span className="grid min-w-0">
             <span className="truncate text-sm font-medium text-foreground">{name}</span>
             <span className="truncate text-xs text-muted-foreground">{email}</span>

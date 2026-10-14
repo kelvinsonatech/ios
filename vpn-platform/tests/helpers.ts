@@ -8,6 +8,11 @@ import { seedProtocols } from "@/server/protocols/seed";
 import { createServerDraft } from "@/server/servers/service";
 import type { AuditActor } from "@/server/audit";
 import { startMockNode, type MockNodeOptions } from "../mock-node/mock-node";
+import { clearPublicCache } from "@/server/public/cache";
+import { getCountryPage, getProtocolPage } from "@/server/public/catalog";
+import { clearSiteSettingsCache, updateSiteSettings } from "@/server/settings/service";
+import { DEFAULT_SITE_SETTINGS, type SiteSettings } from "@/lib/site-settings";
+import type { PublicServerCard } from "@/lib/public/types";
 
 export const actor: AuditActor = { adminId: null, email: "tests@example.com", ip: "127.0.0.1", userAgent: "vitest" };
 export const SECRET = "test-node-secret-0123456789abcdef";
@@ -22,6 +27,24 @@ export async function resetDatabase() {
   await migrate(db(), { migrationsFolder: "drizzle" });
   await seedProtocols();
   await redis().flushdb();
+  clearPublicCache();
+  clearSiteSettingsCache();
+}
+
+/** Store site settings for a test (whole document, merged over the defaults). */
+export async function setSettings(patch: Partial<SiteSettings>) {
+  await updateSiteSettings({ ...DEFAULT_SITE_SETTINGS, ...patch }, actor);
+  clearPublicCache();
+}
+
+/** Every server the public browse pages list for a protocol (fresh, bypassing the catalogue cache). */
+export async function listedServers(protocolSlug: string): Promise<PublicServerCard[]> {
+  clearPublicCache();
+  const page = await getProtocolPage(protocolSlug);
+  if (!page) return [];
+  const out: PublicServerCard[] = [];
+  for (const c of page.countries) out.push(...((await getCountryPage(protocolSlug, c.slug))?.servers ?? []));
+  return out;
 }
 
 export async function teardown() {
@@ -36,16 +59,19 @@ export async function startNode(opts: Partial<MockNodeOptions> = {}) {
 }
 
 let counter = 0;
-export async function createServer(port: number, overrides: { maxAccounts?: number; name?: string } = {}) {
+export async function createServer(
+  port: number,
+  overrides: { maxAccounts?: number; name?: string; countryCode?: string; city?: string | null; region?: string | null; hostname?: string } = {},
+) {
   counter += 1;
   return createServerDraft(
     {
       name: overrides.name ?? `Test ${counter} ${Date.now()}`,
       slug: null,
-      countryCode: "SG",
-      city: "Singapore",
-      region: "Asia",
-      hostname: "node.test",
+      countryCode: overrides.countryCode ?? "SG",
+      city: overrides.city === undefined ? "Singapore" : overrides.city,
+      region: overrides.region === undefined ? "Asia" : overrides.region,
+      hostname: overrides.hostname ?? "node.test",
       ipAddress: "127.0.0.1",
       apiPort: port,
       apiBasePath: "/api/v1",

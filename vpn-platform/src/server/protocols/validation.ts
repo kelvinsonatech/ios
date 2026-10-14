@@ -24,6 +24,7 @@ export const RESERVED_PROTOCOL_SLUGS: readonly string[] = [
   "acceptable-use",
   "report",
   "server-status",
+  "my-accounts",
   "admin",
   "api",
   "sitemap.xml",

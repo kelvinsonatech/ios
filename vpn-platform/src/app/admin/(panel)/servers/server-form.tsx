@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRoundIcon, LoaderCircleIcon, PlugZapIcon, SaveIcon } from "lucide-react";
+import { KeyRoundIcon, Link2Icon, LoaderCircleIcon, PlugZapIcon, SaveIcon } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,11 +10,14 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/admin/form-field";
 import { REGIONS } from "@/lib/countries";
+import { slugify } from "@/lib/slug";
 import type { ActionState } from "@/lib/action-state";
 import { useServerAction } from "@/hooks/use-server-action";
 
 export interface ServerFormValues {
   name?: string;
+  /** Public URL name ("de1"); blank on create = next free <country><n>. */
+  slug?: string;
   countryCode?: string;
   city?: string | null;
   region?: string | null;
@@ -43,15 +46,95 @@ type Errors = ActionState["fieldErrors"];
 
 type Country = { code: string; name: string };
 
+/** "de1"-style URL name: lowercase letters, digits and hyphens (mirrors SERVER_SLUG_PATTERN). */
+const cleanSlug = (raw: string) =>
+  raw
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/^-+/, "")
+    .slice(0, 32);
+
+/** URL name with a live preview of the public address it produces. */
+function SlugField({ value, onChange, country, editing, current, errors }: {
+  value: string;
+  onChange: (v: string) => void;
+  country: Country | undefined;
+  editing: boolean;
+  current?: string;
+  errors?: string[];
+}) {
+  const prefix = country ? country.code.toLowerCase() : "de";
+  const shown = value || (editing && current ? current : `${prefix}1`);
+  const countryPart = country ? slugify(country.name) : "germany";
+  return (
+    <FormField
+      id="slug"
+      label="URL name"
+      optional={!editing}
+      errors={errors}
+      className="sm:col-span-2"
+      hint={
+        editing
+          ? "Changing it changes the public links of this server; bookmarks with the old name stop working."
+          : `Leave blank to use the next free name for the country, such as ${prefix}1 or ${prefix}2.`
+      }
+    >
+      <div className="grid gap-2 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-center">
+        <Input
+          id="slug"
+          name="slug"
+          value={value}
+          onChange={(e) => onChange(cleanSlug(e.target.value))}
+          maxLength={32}
+          placeholder={editing ? current : `Automatic (${prefix}1…)`}
+          autoCapitalize="none"
+          autoComplete="off"
+          spellCheck={false}
+          className="font-mono"
+          aria-invalid={!!errors?.length}
+          aria-describedby="slug-preview"
+        />
+        <p id="slug-preview" className="flex min-w-0 items-center gap-1.5 truncate rounded-md border border-dashed bg-muted/40 px-2.5 py-1.5 font-mono text-xs text-muted-foreground">
+          <Link2Icon className="size-3.5 shrink-0" />
+          <span className="truncate">
+            /&lt;protocol&gt;/{countryPart}/<span className={value ? "font-semibold text-foreground" : undefined}>{shown}</span>
+          </span>
+        </p>
+      </div>
+    </FormField>
+  );
+}
+
 /** Country names are computed on the server and passed in, so SSR and hydration render identical text. */
-function DetailsFields({ v, errors, drivers, countries }: { v: ServerFormValues; errors: Errors; drivers: { key: string; label: string }[]; countries: Country[] }) {
+function DetailsFields({
+  v,
+  errors,
+  drivers,
+  countries,
+  editing = false,
+}: {
+  v: ServerFormValues;
+  errors: Errors;
+  drivers: { key: string; label: string }[];
+  countries: Country[];
+  editing?: boolean;
+}) {
+  const [countryCode, setCountryCode] = useState(v.countryCode ?? "");
+  const [slug, setSlug] = useState(v.slug ?? "");
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <FormField id="name" label="Server name" errors={errors?.name} hint="Shown to users, e.g. Singapore 01">
         <Input id="name" name="name" defaultValue={v.name} required maxLength={64} placeholder="Singapore 01" aria-invalid={!!errors?.name} />
       </FormField>
       <FormField id="countryCode" label="Country" errors={errors?.countryCode}>
-        <NativeSelect id="countryCode" name="countryCode" defaultValue={v.countryCode ?? ""} required aria-invalid={!!errors?.countryCode}>
+        <NativeSelect
+          id="countryCode"
+          name="countryCode"
+          value={countryCode}
+          onChange={(e) => setCountryCode(e.target.value)}
+          required
+          aria-invalid={!!errors?.countryCode}
+        >
           <option value="" disabled>
             Select a country
           </option>
@@ -62,6 +145,14 @@ function DetailsFields({ v, errors, drivers, countries }: { v: ServerFormValues;
           ))}
         </NativeSelect>
       </FormField>
+      <SlugField
+        value={slug}
+        onChange={setSlug}
+        country={countries.find((c) => c.code === countryCode)}
+        editing={editing}
+        current={v.slug}
+        errors={errors?.slug}
+      />
       <FormField id="city" label="City" optional errors={errors?.city}>
         <Input id="city" name="city" defaultValue={v.city ?? ""} maxLength={64} placeholder="Singapore" />
       </FormField>
@@ -290,7 +381,7 @@ export function EditDetailsForm({
   const { state, pending, onSubmit } = useServerAction(action);
   return (
     <form onSubmit={onSubmit} className="grid gap-5" noValidate>
-      <DetailsFields v={values} errors={state.fieldErrors} drivers={drivers} countries={countries} />
+      <DetailsFields v={values} errors={state.fieldErrors} drivers={drivers} countries={countries} editing />
       <div className="flex justify-end">
         <Button type="submit" disabled={pending}>
           {pending ? <LoaderCircleIcon className="animate-spin" /> : <SaveIcon />}

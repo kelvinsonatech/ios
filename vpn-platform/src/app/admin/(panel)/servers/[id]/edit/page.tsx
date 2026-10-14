@@ -35,6 +35,7 @@ export default async function EditServerPage({ params }: { params: Promise<{ id:
               countries={COUNTRIES}
               values={{
                 name: server.name,
+                slug: server.slug,
                 countryCode: server.countryCode,
                 city: server.city,
                 region: server.region,

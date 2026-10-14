@@ -105,6 +105,8 @@ const URI_SCHEMES: Record<string, string[]> = {
   vless: ["vless://"],
   trojan: ["trojan://", "trojan-go://"],
   shadowsocks: ["ss://"],
+  hysteria: ["hysteria://"],
+  hysteria2: ["hysteria2://", "hy2://"],
 };
 
 export function validUri(uri: unknown, family: keyof typeof URI_SCHEMES): string | undefined {
@@ -119,8 +121,33 @@ export function resolveExpiry(account: NodeAccount, input: NormalizedAccountInpu
   return new Date(now.getTime() + input.durationDays * 86_400_000);
 }
 
+const HOSTNAME = /^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*\.?$/;
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+const IPV6 = /^[0-9A-Fa-f:]{2,39}$/;
+
+/** A DNS name or an IP address (values from the node end up in share links and app configs). */
+export function isHost(v: string | undefined): v is string {
+  if (!v) return false;
+  if (v.includes(":")) return IPV6.test(v);
+  // All-numeric names are only valid as IPv4 addresses ("999.1.1.1" is neither).
+  return /^[\d.]+$/.test(v) ? IPV4.test(v) : HOSTNAME.test(v);
+}
+
+/** Read a host value and accept it only when it is a valid hostname or IP address. */
+export function hostValue(cfg: ConfigReader, path: string): string | undefined {
+  const v = cfg.str(path, 253);
+  return isHost(v) ? v : undefined;
+}
+
 export function hostOf(cfg: ConfigReader, ctx: AdapterContext): string {
-  return cfg.str("host", 253) ?? cfg.str("domain", 253) ?? ctx.server.hostname;
+  return hostValue(cfg, "host") ?? hostValue(cfg, "domain") ?? ctx.server.hostname;
+}
+
+/** "Yes"/"No" for boolean-ish node values ("1", "true", 1, true); undefined when absent. */
+export function yesNo(v: unknown): string | undefined {
+  if (v === true || v === 1 || v === "1" || v === "true") return "Yes";
+  if (v === false || v === 0 || v === "0" || v === "false") return "No";
+  return undefined;
 }
 
 export function sanitizeFilename(name: string): string {

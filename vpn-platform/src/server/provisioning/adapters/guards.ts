@@ -50,3 +50,19 @@ export const optionGuard = z
   .trim()
   .max(128)
   .regex(/^[A-Za-z0-9@#%^*_+=.,:~\/-]*$/, "Contains characters that are not allowed.");
+
+/** Optional "bug host" for share links: a plain DNS name (or IPv4), never a URL. */
+export const bugHostGuard = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .max(128)
+  .regex(
+    /^(?=.{3,128}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/,
+    "Enter a host name such as cdn.example.com.",
+  );
+
+export const sniTypeGuard = z
+  .string()
+  .trim()
+  .refine((v) => v === "sni" || v === "address", "Choose SNI or address.");

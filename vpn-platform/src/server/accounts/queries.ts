@@ -1,6 +1,7 @@
-import { and, desc, eq, gte, ilike, lte, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, ilike, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/server/db";
-import { accountStatus, protocols, servers, vpnAccounts, type AccountStatus } from "@/server/db/schema";
+import { accountStatus, admins, protocols, servers, vpnAccounts, type AccountStatus } from "@/server/db/schema";
+import { redactObject } from "@/server/logging/redact";
 
 export const ACCOUNT_PAGE_SIZE = 50;
 
@@ -41,17 +42,22 @@ export function parseAccountFilters(sp: Record<string, string | string[] | undef
   };
 }
 
-/** Admin account list. Only safe metadata is ever stored, so nothing secret can leak from here. */
-export async function listAccounts(f: AccountFilters) {
+function filterConditions(f: AccountFilters, opts: { status: boolean }): SQL[] {
   const conds: SQL[] = [];
   if (f.q) conds.push(ilike(vpnAccounts.username, `%${f.q.replace(/[%_]/g, "")}%`));
   if (f.serverId) conds.push(eq(vpnAccounts.serverId, f.serverId));
   if (f.protocol) conds.push(eq(protocols.slug, f.protocol));
-  if (f.status) conds.push(eq(vpnAccounts.status, f.status));
+  if (opts.status && f.status) conds.push(eq(vpnAccounts.status, f.status));
   if (f.country) conds.push(eq(servers.countryCode, f.country));
   if (f.createdFrom) conds.push(gte(vpnAccounts.createdAt, f.createdFrom));
   if (f.createdTo) conds.push(lte(vpnAccounts.createdAt, new Date(f.createdTo.getTime() + 86_400_000)));
   if (f.expiresBefore) conds.push(lte(vpnAccounts.expiresAt, f.expiresBefore));
+  return conds;
+}
+
+/** Admin account list. Only safe metadata is ever stored, so nothing secret can leak from here. */
+export async function listAccounts(f: AccountFilters) {
+  const conds = filterConditions(f, { status: true });
   const rows = await db()
     .select({
       id: vpnAccounts.id,
@@ -60,21 +66,60 @@ export async function listAccounts(f: AccountFilters) {
       createdAt: vpnAccounts.createdAt,
       expiresAt: vpnAccounts.expiresAt,
       durationDays: vpnAccounts.durationDays,
+      activatedAt: vpnAccounts.activatedAt,
+      revokedAt: vpnAccounts.revokedAt,
+      revokedByEmail: admins.email,
       remoteAccountId: vpnAccounts.remoteAccountId,
+      failureCode: vpnAccounts.failureCode,
       failureMessage: vpnAccounts.failureMessage,
       metadata: vpnAccounts.metadata,
       serverId: servers.id,
       serverName: servers.name,
+      serverSlug: servers.slug,
       countryCode: servers.countryCode,
+      country: servers.country,
       protocolName: protocols.name,
       protocolSlug: protocols.slug,
+      protocolIcon: protocols.icon,
     })
     .from(vpnAccounts)
     .innerJoin(servers, eq(servers.id, vpnAccounts.serverId))
     .innerJoin(protocols, eq(protocols.id, vpnAccounts.protocolId))
+    .leftJoin(admins, eq(admins.id, vpnAccounts.revokedBy))
     .where(conds.length ? and(...conds) : undefined)
     .orderBy(desc(vpnAccounts.createdAt))
     .limit(ACCOUNT_PAGE_SIZE + 1)
     .offset((f.page - 1) * ACCOUNT_PAGE_SIZE);
-  return { rows: rows.slice(0, ACCOUNT_PAGE_SIZE), hasMore: rows.length > ACCOUNT_PAGE_SIZE };
+  return {
+    // Metadata is non-secret by design (host, ports, transport...); redacting again is defence in depth.
+    rows: rows.slice(0, ACCOUNT_PAGE_SIZE).map((r) => ({ ...r, metadata: redactObject(r.metadata) })),
+    hasMore: rows.length > ACCOUNT_PAGE_SIZE,
+  };
+}
+
+export type AdminAccountRow = Awaited<ReturnType<typeof listAccounts>>["rows"][number];
+
+/** Accounts per status for the status chips, with every other filter applied. */
+export async function countAccountsByStatus(f: AccountFilters): Promise<Record<AccountStatus, number>> {
+  const conds = filterConditions(f, { status: false });
+  const rows = await db()
+    .select({ status: vpnAccounts.status, count: sql<number>`count(*)::int` })
+    .from(vpnAccounts)
+    .innerJoin(servers, eq(servers.id, vpnAccounts.serverId))
+    .innerJoin(protocols, eq(protocols.id, vpnAccounts.protocolId))
+    .where(conds.length ? and(...conds) : undefined)
+    .groupBy(vpnAccounts.status);
+  const out = Object.fromEntries(accountStatus.enumValues.map((s) => [s, 0])) as Record<AccountStatus, number>;
+  for (const r of rows) out[r.status] = r.count;
+  return out;
+}
+
+/** Status and node id of one account (for the revoke action's pre-checks). */
+export async function getAccountState(id: string) {
+  const [row] = await db()
+    .select({ id: vpnAccounts.id, status: vpnAccounts.status, username: vpnAccounts.username, remoteAccountId: vpnAccounts.remoteAccountId })
+    .from(vpnAccounts)
+    .where(eq(vpnAccounts.id, id))
+    .limit(1);
+  return row ?? null;
 }

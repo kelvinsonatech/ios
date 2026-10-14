@@ -1,11 +1,13 @@
 import type { ProtocolAdapter } from "../types";
 import { genericAdapter } from "./generic";
+import { createHysteriaAdapter } from "./hysteria";
 import { noobzvpnAdapter } from "./noobzvpn";
 import { openvpnAdapter } from "./openvpn";
 import { shadowsocksAdapter } from "./shadowsocks";
 import { createSshAdapter } from "./ssh";
 import { createV2rayAdapter } from "./v2ray";
 import { wireguardAdapter } from "./wireguard";
+import { zivpnAdapter } from "./zivpn";
 
 /**
  * Protocol adapter registry. `protocols.adapter_key` selects the adapter.
@@ -24,6 +26,9 @@ const adapters: ProtocolAdapter[] = [
   createV2rayAdapter("vless"),
   createV2rayAdapter("trojan"),
   noobzvpnAdapter,
+  createHysteriaAdapter("hysteria"),
+  createHysteriaAdapter("hysteria2"),
+  zivpnAdapter,
   genericAdapter,
 ];
 

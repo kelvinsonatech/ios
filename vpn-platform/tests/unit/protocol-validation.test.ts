@@ -22,7 +22,7 @@ describe("protocol slugs", () => {
   it("accepts a normal slug", () => {
     expect(protocolSchema.safeParse(base).success).toBe(true);
   });
-  it.each(["about", "contact", "privacy", "terms", "acceptable-use", "report", "server-status", "admin", "api"])(
+  it.each(["about", "contact", "privacy", "terms", "acceptable-use", "report", "server-status", "my-accounts", "admin", "api"])(
     "rejects the public route %s",
     (slug) => {
       const r = protocolSchema.safeParse({ ...base, slug });
@@ -39,6 +39,10 @@ describe("protocol slugs", () => {
       expect(isReservedProtocolSlug(slug)).toBe(true);
       expect(protocolSchema.safeParse({ ...base, slug }).success).toBe(false);
     }
+  });
+  it("covers every static public route listed in the product spec", () => {
+    const spec = ["about", "contact", "privacy", "terms", "acceptable-use", "report", "server-status", "my-accounts", "admin", "api", "sitemap.xml", "robots.txt", "_next"];
+    for (const slug of spec) expect(RESERVED_PROTOCOL_SLUGS).toContain(slug);
   });
   it("does not reserve similar but distinct names", () => {
     expect(isReservedProtocolSlug("reports")).toBe(false);

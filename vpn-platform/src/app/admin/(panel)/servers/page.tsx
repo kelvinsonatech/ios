@@ -7,7 +7,8 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Capacity } from "@/components/admin/capacity";
 import { CompatibilityBadge, ServerStatusBadge } from "@/components/admin/status-badge";
 import { RelativeTime } from "@/components/admin/relative-time";
-import { flagEmoji } from "@/lib/countries";
+import { Flag } from "@/components/public/flag";
+import { Latency } from "@/components/public/latency";
 import { requirePermission } from "@/server/auth/guards";
 import { can } from "@/server/auth/rbac";
 import { listServersForAdmin } from "@/server/servers/queries";
@@ -68,7 +69,7 @@ export default async function ServersPage() {
                 <TableHead>Status</TableHead>
                 <TableHead className="hidden sm:table-cell">Accounts</TableHead>
                 <TableHead className="hidden lg:table-cell">Protocols</TableHead>
-                <TableHead className="hidden md:table-cell">Last seen</TableHead>
+                <TableHead className="hidden md:table-cell">Last check</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -77,11 +78,12 @@ export default async function ServersPage() {
                 <TableRow key={s.id}>
                   <TableCell>
                     <Link href={`/admin/servers/${s.id}`} className="group flex items-center gap-3">
-                      <span className="text-xl leading-none" aria-hidden>
-                        {flagEmoji(s.countryCode)}
-                      </span>
+                      <Flag code={s.countryCode} className="h-5 w-7" title={s.country} />
                       <span className="grid">
-                        <span className="font-medium group-hover:underline">{s.name}</span>
+                        <span className="flex items-center gap-2 font-medium">
+                          <span className="group-hover:underline">{s.name}</span>
+                          <span className="rounded bg-muted px-1.5 py-px font-mono text-[11px] font-normal text-muted-foreground">{s.slug}</span>
+                        </span>
                         <span className="text-xs text-muted-foreground">
                           {[s.city, s.country].filter(Boolean).join(", ")} · <span className="font-mono">{s.hostname}</span>
                         </span>
@@ -92,6 +94,7 @@ export default async function ServersPage() {
                     <div className="flex flex-col items-start gap-1">
                       <ServerStatusBadge status={s.status} />
                       <CompatibilityBadge compatibility={s.compatibility} />
+                      {s.lastLatencyMs !== null && s.status !== "offline" ? <Latency ms={s.lastLatencyMs} className="text-xs" /> : null}
                     </div>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
@@ -104,7 +107,7 @@ export default async function ServersPage() {
                     </span>
                   </TableCell>
                   <TableCell className="hidden text-sm md:table-cell">
-                    <RelativeTime date={s.lastSeenAt} />
+                    <RelativeTime date={s.lastHealthCheckAt ?? s.lastSeenAt} />
                   </TableCell>
                   <TableCell>
                     <ServerActionsMenu

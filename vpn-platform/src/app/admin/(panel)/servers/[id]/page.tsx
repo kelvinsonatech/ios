@@ -1,6 +1,18 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { AlertTriangleIcon, ClockIcon, CpuIcon, HardDriveIcon, MemoryStickIcon, PencilIcon, ServerIcon, TimerIcon } from "lucide-react";
+import {
+  ActivityIcon,
+  AlertTriangleIcon,
+  ClockIcon,
+  CpuIcon,
+  ExternalLinkIcon,
+  GlobeIcon,
+  HardDriveIcon,
+  MemoryStickIcon,
+  PencilIcon,
+  ServerIcon,
+  TimerIcon,
+} from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,12 +22,17 @@ import { PageHeader } from "@/components/admin/page-header";
 import { Capacity } from "@/components/admin/capacity";
 import { CompatibilityBadge, ServerStatusBadge, ServiceDot } from "@/components/admin/status-badge";
 import { RelativeTime } from "@/components/admin/relative-time";
+import { HealthSparkline } from "@/components/admin/health-sparkline";
 import { ProtocolIcon } from "@/components/protocol-icon";
-import { flagEmoji } from "@/lib/countries";
+import { Flag } from "@/components/public/flag";
+import { Latency } from "@/components/public/latency";
 import { formatBytes, formatDuration } from "@/lib/format";
+import { countrySlug } from "@/lib/slug";
 import { requirePermission } from "@/server/auth/guards";
 import { can } from "@/server/auth/rbac";
-import { getServerDetail } from "@/server/servers/queries";
+import { quotaWindow } from "@/server/provisioning/quota";
+import { getHealthTimeline, getServerDetail } from "@/server/servers/queries";
+import { getSiteSettings } from "@/server/settings/service";
 import { ServerActionsMenu } from "../server-actions-menu";
 import { SyncButton, TestConnectionButton } from "../operation-buttons";
 
@@ -47,11 +64,19 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
   const { admin } = await requirePermission("servers:view");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const detail = await getServerDetail(id);
+  const [detail, timeline, settings] = await Promise.all([getServerDetail(id), getHealthTimeline(id), getSiteSettings()]);
   if (!detail) notFound();
   const { server, latestHealth: h, credential } = detail;
   const operate = can(admin.role, "servers:operate");
   const enabled = detail.protocols.filter((p) => p.enabled && p.detected);
+  const published = server.lifecycle === "active" || server.lifecycle === "maintenance";
+  const publicPages = enabled
+    .filter((p) => p.globallyEnabled)
+    .map((p) => ({ ...p, href: `/${p.slug}/${countrySlug(server.countryCode)}/${server.slug}` }));
+  const window = quotaWindow(new Date(), settings.quota.resetTimes, settings.quota.timezone);
+  const quotaUsed = (p: (typeof detail.protocols)[number]) =>
+    p.quotaWindowStart && p.quotaWindowStart.getTime() === window.start.getTime() ? (p.quotaUsed ?? 0) : 0;
+  const latency = server.lastLatencyMs ?? h?.latencyMs ?? null;
 
   return (
     <>
@@ -59,7 +84,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
         back={{ href: "/admin/servers", label: "Servers" }}
         title={
           <span className="flex items-center gap-3">
-            <span aria-hidden>{flagEmoji(server.countryCode)}</span>
+            <Flag code={server.countryCode} className="h-6 w-8 rounded-[4px]" title={server.country} />
             {server.name}
           </span>
         }
@@ -85,6 +110,7 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
           <CompatibilityBadge compatibility={server.compatibility} />
           {server.healthStatus === "degraded" ? <Badge variant="warning">Degraded</Badge> : null}
           <span className="font-mono text-xs text-muted-foreground">{server.hostname}</span>
+          <span className="font-mono text-xs text-muted-foreground">· /{server.slug}</span>
         </div>
       </PageHeader>
 
@@ -128,9 +154,16 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
               <CardTitle>Health</CardTitle>
               <CardDescription>
                 Last health check <RelativeTime date={server.lastHealthCheckAt} />
-                {h?.latencyMs ? ` · ${h.latencyMs} ms` : ""}
+                {server.consecutiveFailures > 0 ? ` · ${server.consecutiveFailures} failed in a row` : ""}
               </CardDescription>
+              <CardAction className="flex items-center gap-1.5 text-sm">
+                <ActivityIcon className="size-4 text-muted-foreground" />
+                <Latency ms={latency} className="font-medium" />
+              </CardAction>
             </CardHeader>
+            <CardContent>
+              <HealthSparkline slices={timeline} />
+            </CardContent>
             <CardContent className="grid grid-cols-2 gap-3 md:grid-cols-4">
               <Metric icon={<CpuIcon />} label="CPU" value={h?.cpuPercent != null ? `${h.cpuPercent.toFixed(1)}%` : "—"} pct={h?.cpuPercent ?? undefined} />
               <Metric
@@ -151,20 +184,6 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
                 value={h?.load1 != null ? `${h.load1.toFixed(2)} · ${h.uptimeSeconds ? formatDuration(h.uptimeSeconds) : "—"}` : "—"}
               />
             </CardContent>
-            {detail.healthHistory.length > 1 ? (
-              <CardContent>
-                <div className="flex h-8 items-end gap-0.5" aria-label="Recent checks">
-                  {[...detail.healthHistory].reverse().map((c, i) => (
-                    <span
-                      key={i}
-                      title={`${c.checkedAt.toISOString()} ${c.reachable ? `${c.latencyMs ?? "?"} ms` : "unreachable"}`}
-                      className={`w-full max-w-3 rounded-sm ${c.reachable ? "bg-success/70" : "bg-destructive/80"}`}
-                      style={{ height: c.reachable ? `${Math.max(25, Math.min(100, ((c.latencyMs ?? 50) / 300) * 100))}%` : "100%" }}
-                    />
-                  ))}
-                </div>
-              </CardContent>
-            ) : null}
           </Card>
 
           <Card>
@@ -190,9 +209,16 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
                       <ServiceDot status={p.serviceStatus ?? "unknown"} />
                     </span>
                     <span className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {p.currentAccounts ?? 0}
-                        {p.maxAccounts ? ` / ${p.maxAccounts}` : ""}
+                      <span className="grid text-right text-xs text-muted-foreground tabular-nums">
+                        <span title="Active accounts / maximum">
+                          {p.currentAccounts ?? 0}
+                          {p.maxAccounts ? ` / ${p.maxAccounts}` : ""} active
+                        </span>
+                        {p.quotaLimit ? (
+                          <span title="Created this period / creation quota" className={quotaUsed(p) >= p.quotaLimit ? "text-destructive" : undefined}>
+                            {quotaUsed(p)} / {p.quotaLimit} this period
+                          </span>
+                        ) : null}
                       </span>
                       {p.enabled ? <Badge variant="success">On</Badge> : <Badge variant="muted">Off</Badge>}
                     </span>
@@ -255,6 +281,53 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
           </Card>
           <Card>
             <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <GlobeIcon className="size-4 text-muted-foreground" /> Public pages
+              </CardTitle>
+              <CardDescription>
+                {published
+                  ? "Where visitors create accounts on this server, one page per enabled protocol."
+                  : "These pages go live when the server is published."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {publicPages.length ? (
+                <ul className="grid gap-1.5">
+                  {publicPages.map((p) => (
+                    <li key={p.protocolId}>
+                      {published ? (
+                        <a
+                          href={p.href}
+                          target="_blank"
+                          rel="noopener"
+                          className="group flex items-center gap-2.5 rounded-md border px-2.5 py-2 text-sm transition-colors hover:border-primary/40 hover:bg-muted/40"
+                        >
+                          <ProtocolIcon name={p.icon} className="size-4 shrink-0 text-muted-foreground group-hover:text-primary" />
+                          <span className="grid min-w-0 flex-1">
+                            <span className="font-medium">{p.name}</span>
+                            <span className="truncate font-mono text-[11px] text-muted-foreground">{p.href}</span>
+                          </span>
+                          <ExternalLinkIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-2.5 rounded-md border border-dashed px-2.5 py-2 text-sm text-muted-foreground">
+                          <ProtocolIcon name={p.icon} className="size-4 shrink-0" />
+                          <span className="grid min-w-0 flex-1">
+                            <span>{p.name}</span>
+                            <span className="truncate font-mono text-[11px]">{p.href}</span>
+                          </span>
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">No protocol is enabled on this server yet.</p>
+              )}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
               <CardTitle>Details</CardTitle>
               {can(admin.role, "servers:edit") ? (
                 <CardAction>
@@ -268,6 +341,9 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
             </CardHeader>
             <CardContent>
               <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+                <Row label="URL name">
+                  <span className="font-mono text-xs">{server.slug}</span>
+                </Row>
                 <Row label="Hostname">
                   <span className="font-mono text-xs">{server.hostname}</span>
                 </Row>
@@ -304,6 +380,9 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
                 </Row>
                 <Row label="Last health check">
                   <RelativeTime date={server.lastHealthCheckAt} />
+                </Row>
+                <Row label="Last latency">
+                  <Latency ms={latency} />
                 </Row>
                 <Row label="Published">
                   <RelativeTime date={server.publishedAt} fallback="Not yet" />

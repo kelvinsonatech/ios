@@ -1,9 +1,9 @@
 import { connection } from "next/server";
-import { listPublicServerStatus } from "@/server/protocols/catalog";
-import { publicJson } from "@/server/http";
+import { getStatusPage } from "@/server/public/catalog";
+import { cachedJson } from "@/server/public/http";
 
-/** GET /api/public/servers — server status page data (safe metadata only). */
+/** GET /api/public/servers — every published server per protocol (StatusPageData, safe metadata only). */
 export async function GET() {
   await connection();
-  return publicJson({ servers: await listPublicServerStatus() }, { maxAge: 30 });
+  return cachedJson(await getStatusPage(), 30);
 }

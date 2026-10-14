@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { CompatibilityBadge } from "@/components/admin/status-badge";
 import { requirePermission } from "@/server/auth/guards";
 import { getServerDetail } from "@/server/servers/queries";
+import { getSiteSettings } from "@/server/settings/service";
 import { saveServerProtocolsAction } from "../../actions";
 import { PublishButton, SyncButton } from "../../operation-buttons";
 import { ProtocolSettingsForm } from "../../protocol-settings-form";
@@ -35,13 +36,13 @@ export default async function ServerSetupPage({ params }: { params: Promise<{ id
   await requirePermission("servers:edit");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/.test(id)) notFound();
-  const detail = await getServerDetail(id);
+  const [detail, settings] = await Promise.all([getServerDetail(id), getSiteSettings()]);
   if (!detail) notFound();
   const { server } = detail;
   if (server.lifecycle !== "draft") redirect(`/admin/servers/${id}`);
 
   const connected = !!server.lastSuccessfulConnectionAt && server.healthStatus !== "offline" && server.healthStatus !== "unknown";
-  const rows = toSettingRows(detail);
+  const rows = toSettingRows(detail, settings.quota);
   const detected = rows.filter((r) => r.detected);
   const enabledCount = detected.filter((r) => r.enabled).length;
   const save = saveServerProtocolsAction.bind(null, server.id);

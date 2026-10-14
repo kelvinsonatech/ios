@@ -34,6 +34,12 @@ function parseServerForm(fd: FormData, secretRequired: boolean) {
   return { details, conn };
 }
 
+/** Name / URL-name conflicts are shown next to their field, not only in a toast. */
+function conflictErrors(e: unknown): ActionState | null {
+  if (!(e instanceof UserFacingError) || (e.code !== "SLUG_TAKEN" && e.code !== "NAME_TAKEN")) return null;
+  return { error: e.message, fieldErrors: { [e.code === "SLUG_TAKEN" ? "slug" : "name"]: [e.message] } };
+}
+
 function refresh(id?: string) {
   revalidatePath("/admin/servers");
   revalidatePath("/admin");
@@ -52,7 +58,14 @@ export async function createServerAction(fd: FormData): Promise<ActionState> {
         fieldErrors: { ...(details.success ? {} : fieldErrors(details.error)), ...(conn.success ? {} : fieldErrors(conn.error)) },
       };
     }
-    const server = await createServerDraft(details.data, conn.data, actor);
+    let server;
+    try {
+      server = await createServerDraft(details.data, conn.data, actor);
+    } catch (e) {
+      const conflict = conflictErrors(e);
+      if (conflict) return conflict;
+      throw e;
+    }
     createdId = server.id;
     await syncServer(server.id, actor);
     refresh(server.id);
@@ -68,7 +81,13 @@ export async function updateServerDetailsAction(id: string, fd: FormData): Promi
     const serverId = parseId(id);
     const details = serverDetailsSchema.safeParse(formToObject(fd));
     if (!details.success) return { error: "Please correct the highlighted fields.", fieldErrors: fieldErrors(details.error) };
-    await updateServerDetails(serverId, details.data, actor);
+    try {
+      await updateServerDetails(serverId, details.data, actor);
+    } catch (e) {
+      const conflict = conflictErrors(e);
+      if (conflict) return conflict;
+      throw e;
+    }
     refresh(serverId);
     return { ok: true, message: "Server details saved." };
   });
@@ -164,7 +183,12 @@ export async function restartAgentAction(id: string): Promise<ActionState> {
   });
 }
 
-/** Form fields: `enabled:<protocolId>` = "on", `max:<protocolId>` = number or "". */
+const LIMIT_MAX = 100_000;
+
+/**
+ * Form fields: `enabled:<protocolId>` = "on", `max:<protocolId>` and `quota:<protocolId>` = whole
+ * number or "" (no limit). A form without a `quota:` field leaves the creation quota unchanged.
+ */
 export async function saveServerProtocolsAction(id: string, fd: FormData): Promise<ActionState> {
   return safeAction("saveServerProtocols", async () => {
     const { actor } = await authorize("servers:edit");
@@ -172,15 +196,30 @@ export async function saveServerProtocolsAction(id: string, fd: FormData): Promi
     const raw = formToObject(fd);
     const ids = Object.keys(raw)
       .filter((k) => k.startsWith("present:"))
-      .map((k) => k.slice("present:".length));
+      .map((k) => k.slice("present:".length))
+      .slice(0, 100);
+    const errors: Record<string, string[]> = {};
+    const limit = (key: string): number | null | undefined => {
+      if (!(key in raw)) return undefined;
+      const v = raw[key]!.trim();
+      if (!v) return null;
+      const n = /^\d{1,6}$/.test(v) ? Number(v) : NaN;
+      if (!(n >= 1 && n <= LIMIT_MAX)) {
+        errors[key] = [`Whole number from 1 to ${LIMIT_MAX.toLocaleString("en-US")}, or blank for no limit`];
+        return null;
+      }
+      return n;
+    };
     const parsed = protocolSettingsSchema.safeParse(
       ids.map((pid) => ({
         protocolId: pid,
         enabled: raw[`enabled:${pid}`] === "on",
-        maxAccounts: raw[`max:${pid}`] ? Number(raw[`max:${pid}`]) : null,
+        maxAccounts: limit(`max:${pid}`) ?? null,
+        quotaLimit: limit(`quota:${pid}`),
       })),
     );
-    if (!parsed.success) return { error: "Per-protocol limits must be whole numbers greater than zero." };
+    if (Object.keys(errors).length) return { error: "Limits must be whole numbers greater than zero.", fieldErrors: errors };
+    if (!parsed.success) return { error: "Invalid protocol settings." };
     await updateServerProtocols(serverId, parsed.data, actor);
     refresh(serverId);
     return { ok: true, message: "Protocol settings saved." };

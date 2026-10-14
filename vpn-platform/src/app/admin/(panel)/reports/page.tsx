@@ -8,7 +8,7 @@ import { ExpandableText } from "@/components/admin/expandable-text";
 import { PageHeader } from "@/components/admin/page-header";
 import { Pager } from "@/components/admin/pager";
 import { RelativeTime } from "@/components/admin/relative-time";
-import { flagEmoji } from "@/lib/countries";
+import { Flag } from "@/components/public/flag";
 import { formatNumber } from "@/lib/format";
 import { REPORT_CATEGORIES } from "@/lib/public/report-categories";
 import type { ReportCategory } from "@/lib/public/types";
@@ -59,8 +59,9 @@ function ServerCell({ r }: { r: ReportListItem }) {
   return (
     <div className="grid min-w-0 gap-0.5 text-sm">
       {r.server ? (
-        <Link href={`/admin/servers/${r.server.id}`} className="w-fit truncate font-medium hover:underline">
-          <span aria-hidden>{flagEmoji(r.server.countryCode)}</span> {r.server.name}
+        <Link href={`/admin/servers/${r.server.id}`} className="flex w-fit min-w-0 items-center gap-1.5 font-medium hover:underline">
+          <Flag code={r.server.countryCode} className="h-3 w-4" />
+          <span className="truncate">{r.server.name}</span>
         </Link>
       ) : (
         <span className="text-muted-foreground">No server</span>
@@ -70,8 +71,12 @@ function ServerCell({ r }: { r: ReportListItem }) {
   );
 }
 
+/** Plain address only (no "?", "&" or spaces that could add mailto: headers). */
+const SIMPLE_EMAIL = /^[^\s@?&#<>"]+@[^\s@?&#<>"]+$/;
+
 function ReplyLink({ email, siteName }: { email: string | null; siteName: string }) {
   if (!email) return <span className="text-sm text-muted-foreground">—</span>;
+  if (!SIMPLE_EMAIL.test(email)) return <span className="text-sm break-all">{email}</span>;
   const href = `mailto:${encodeURI(email)}?subject=${encodeURIComponent(`Your problem report on ${siteName}`)}`;
   return (
     <a href={href} className="flex min-w-0 items-center gap-1.5 text-sm text-primary hover:underline" title={`Reply to ${email}`}>
@@ -94,6 +99,13 @@ function StatusCell({ r }: { r: ReportListItem }) {
       {r.adminNote ? <span className="line-clamp-2 max-w-56 text-xs text-muted-foreground italic">“{r.adminNote}”</span> : null}
     </div>
   );
+}
+
+const DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+
+/** "14 Oct, 18:24 UTC". */
+function shortDate(iso: string) {
+  return `${DATE.format(new Date(iso))} UTC`;
 }
 
 function summaryOf(r: ReportListItem) {
@@ -192,6 +204,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   <TableRow key={r.id} className="align-top">
                     <TableCell className="text-sm whitespace-nowrap">
                       <RelativeTime date={r.createdAt} />
+                      <span className="block text-xs text-muted-foreground">{shortDate(r.createdAt)}</span>
                     </TableCell>
                     <TableCell>
                       <CategoryBadge category={r.category} />

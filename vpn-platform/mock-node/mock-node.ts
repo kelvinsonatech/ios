@@ -27,6 +27,12 @@ export interface MockNodeOptions {
   tls?: { cert: string; key: string };
   /** Enable unsigned /__mock control endpoints (tests / local dev). */
   control?: boolean;
+  /** Artificial delay before every API answer, ms (status page / latency demos). Default 0. */
+  latencyMs?: number;
+  /** Value reported as capabilities.expiry_managed_by_node (the owner's nodes report false). */
+  expiryManagedByNode?: boolean;
+  /** ISO country code reported by /info. */
+  country?: string;
 }
 
 interface MockAccount {
@@ -53,24 +59,39 @@ export interface MockNodeState {
   failNextCreates: number;
   requestLog: { method: string; path: string; status: number }[];
   maintenance: boolean;
+  /** Artificial delay before every API answer (±20 % jitter), ms. */
+  latencyMs: number;
 }
 
 const SSH_FAMILY = new Set(["ssh", "ssh-ws", "ssh-websocket", "stunnel", "ssh-ssl", "slowdns", "udp-custom", "openvpn", "noobzvpn"]);
 
-const DEFAULT_PROTOCOLS = ["ssh", "ssh-ws", "stunnel", "slowdns", "udp-custom", "vmess", "vless", "trojan", "shadowsocks", "noobzvpn", "hysteria2"];
+/**
+ * The protocol ids the owner's install script reports (docs/10-script-api-prompt.md section 6).
+ * Older/other ids (ssh-ws, stunnel, udp-custom, shadowsocks, wireguard, openvpn, noobzvpn) are still
+ * understood when passed in `protocols`.
+ */
+export const OWNER_PROTOCOLS = ["ssh", "ssh-ssl", "slowdns", "vmess", "vless", "trojan", "hysteria", "hysteria2", "zivpn"];
+const DEFAULT_PROTOCOLS = OWNER_PROTOCOLS;
 
 function portsFor(id: string): { ports: Record<string, number[] | string>; transports: string[] } {
   switch (id) {
     case "ssh":
-      return { ports: { openssh: [22], dropbear: [109, 143] }, transports: [] };
+      return { ports: { openssh: [22], dropbear: [109, 143], ws: [80], ws_tls: [443] }, transports: [] };
     case "ssh-ws":
     case "ssh-websocket":
       return { ports: { ws: [80, 8080], ws_tls: [443] }, transports: ["ws"] };
-    case "stunnel":
     case "ssh-ssl":
+      return { ports: { ssl: [443, 447], ws_tls: [443] }, transports: [] };
+    case "stunnel":
       return { ports: { ssl: [443, 777] }, transports: [] };
     case "slowdns":
-      return { ports: { slowdns: [53, 5300] }, transports: [] };
+      return { ports: { slowdns: [53], openssh: [22] }, transports: [] };
+    case "hysteria":
+      return { ports: { udp: [36712] }, transports: [] };
+    case "hysteria2":
+      return { ports: { udp: [8443] }, transports: [] };
+    case "zivpn":
+      return { ports: { udp: "6000-19999" }, transports: [] };
     case "udp-custom":
       return { ports: { udp_custom: "1-65535" }, transports: [] };
     case "vmess":
@@ -91,28 +112,100 @@ function portsFor(id: string): { ports: Record<string, number[] | string>; trans
 }
 
 const wgKey = () => randomBytes(32).toString("base64");
+const secretFor = () => randomBytes(12).toString("base64url");
 
-function buildConfig(protocol: string, host: string, ip: string, a: { username?: string; password?: string; transport?: string }) {
+interface NodeSecrets {
+  slowdnsPublicKey: string;
+  hysteriaObfs: string;
+  hysteria2Obfs: string;
+}
+
+/** Realistic `config` per protocol, following docs/10-script-api-prompt.md section 8. */
+function buildConfig(
+  protocol: string,
+  host: string,
+  ip: string,
+  secrets: NodeSecrets,
+  a: { username?: string; password?: string; transport?: string },
+) {
   const base = { host, ip };
+  const q = encodeURIComponent;
   switch (protocol) {
+    case "ssh":
+      return {
+        ...base,
+        username: a.username,
+        password: a.password,
+        ports: { openssh: [22], dropbear: [109, 143], ws: [80], ws_tls: [443] },
+        payload: `GET / HTTP/1.1[crlf]Host: ${host}[crlf]Upgrade: websocket[crlf][crlf]`,
+      };
+    case "ssh-ssl":
+      return {
+        ...base,
+        username: a.username,
+        password: a.password,
+        ports: { ssl: [443, 447], ws_tls: [443] },
+        sni: host,
+        payload: `GET wss://${host}/ HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]`,
+      };
+    case "slowdns":
+      return {
+        ...base,
+        username: a.username,
+        password: a.password,
+        ports: { slowdns: [53], openssh: [22] },
+        slowdns: { nameserver: `ns-${host}`, public_key: secrets.slowdnsPublicKey },
+      };
     case "vmess":
     case "vless":
     case "trojan": {
       const path = `/${protocol}`;
       const cred = protocol === "trojan" ? { password: randomBytes(12).toString("hex") } : { uuid: randomUUID() };
       const conns = [
-        { name: "WS TLS", network: "ws", security: "tls", port: 443, path, sni: host },
-        { name: "WS", network: "ws", security: "none", port: 80, path },
-        { name: "gRPC TLS", network: "grpc", security: "tls", port: 443, service_name: `${protocol}-grpc`, sni: host },
+        { name: "WS TLS", network: "ws", security: "tls", port: 443, path, host_header: host, sni: host },
+        { name: "WS", network: "ws", security: "none", port: 80, path, host_header: host },
+        { name: "gRPC", network: "grpc", security: "tls", port: 443, service_name: `${protocol}-grpc`, sni: host },
       ];
       return {
         ...base,
         remark: a.username,
         ...cred,
         ...(protocol === "vmess" ? { alter_id: 0 } : {}),
+        ...(protocol === "vless" ? { flow: "" } : {}),
         connections: a.transport === "grpc" ? conns.filter((c) => c.network === "grpc") : conns.filter((c) => c.network === "ws"),
       };
     }
+    case "hysteria": {
+      const auth = a.password ?? secretFor();
+      return {
+        ...base,
+        port: 36712,
+        protocol: "udp",
+        auth,
+        obfs: "xplus",
+        obfs_password: secrets.hysteriaObfs,
+        up_mbps: 100,
+        down_mbps: 100,
+        alpn: "hysteria",
+        sni: host,
+        insecure: true,
+        uri: `hysteria://${host}:36712?protocol=udp&auth=${q(auth)}&peer=${host}&insecure=1&upmbps=100&downmbps=100&alpn=hysteria&obfs=xplus&obfsParam=${q(secrets.hysteriaObfs)}#${q(a.username ?? "account")}`,
+      };
+    }
+    case "hysteria2": {
+      const password = a.password ?? secretFor();
+      return {
+        ...base,
+        port: 8443,
+        password,
+        obfs: { type: "salamander", password: secrets.hysteria2Obfs },
+        sni: host,
+        insecure: false,
+        uri: `hysteria2://${q(password)}@${host}:8443/?sni=${host}&obfs=salamander&obfs-password=${q(secrets.hysteria2Obfs)}&insecure=0#${q(a.username ?? "account")}`,
+      };
+    }
+    case "zivpn":
+      return { ...base, password: a.password ?? secretFor(), ports: { udp: "6000-19999" }, obfs: "zivpn" };
     case "shadowsocks":
       return { ...base, port: 8388, method: "chacha20-ietf-poly1305", password: randomBytes(12).toString("base64url") };
     case "wireguard": {
@@ -150,7 +243,7 @@ function buildConfig(protocol: string, host: string, ip: string, a: { username?:
           udp_custom: "1-65535",
           slowdns: [53, 5300],
         },
-        slowdns: { nameserver: `ns.${host}`, public_key: randomBytes(32).toString("hex") },
+        slowdns: { nameserver: `ns.${host}`, public_key: secrets.slowdnsPublicKey },
         payload: `GET / HTTP/1.1[crlf]Host: ${host}[crlf]Upgrade: websocket[crlf][crlf]`,
       };
   }
@@ -208,6 +301,12 @@ export async function startMockNode(opts: MockNodeOptions) {
     failNextCreates: 0,
     requestLog: [],
     maintenance: false,
+    latencyMs: Math.max(0, opts.latencyMs ?? 0),
+  };
+  const secrets: NodeSecrets = {
+    slowdnsPublicKey: randomBytes(32).toString("hex"),
+    hysteriaObfs: secretFor(),
+    hysteria2Obfs: secretFor(),
   };
   const nonces = new Map<string, number>();
 
@@ -232,11 +331,17 @@ export async function startMockNode(opts: MockNodeOptions) {
         if (typeof input.createDelayMs === "number") state.createDelayMs = input.createDelayMs;
         if (typeof input.failNextCreates === "number") state.failNextCreates = input.failNextCreates;
         if (typeof input.maintenance === "boolean") state.maintenance = input.maintenance;
+        if (typeof input.latencyMs === "number") state.latencyMs = Math.max(0, input.latencyMs);
+        if (Array.isArray(input.stopped)) state.stopped = new Set(input.stopped.map(String));
       }
       return ok(res, { protocols: state.protocols });
     }
 
     if (!pathOnly.startsWith(basePath)) return fail(res, 404, "NOT_FOUND", "Unknown path");
+    if (state.latencyMs > 0) {
+      const jitter = state.latencyMs * (0.8 + Math.random() * 0.4);
+      await new Promise((r) => setTimeout(r, Math.round(jitter)));
+    }
 
     // ---- authentication ----
     const headers = Object.fromEntries(Object.entries(req.headers).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
@@ -270,7 +375,7 @@ export async function startMockNode(opts: MockNodeOptions) {
         status: state.maintenance ? "maintenance" : "online",
         hostname,
         public_ip: publicIp,
-        country: "SG",
+        country: opts.country ?? "SG",
         server_time: new Date().toISOString(),
         protocols: state.protocols,
         capabilities: {
@@ -279,7 +384,7 @@ export async function startMockNode(opts: MockNodeOptions) {
           renew: true,
           list_accounts: true,
           restart_agent: true,
-          expiry_managed_by_node: true,
+          expiry_managed_by_node: opts.expiryManagedByNode ?? false,
         },
       });
     }
@@ -346,7 +451,7 @@ export async function startMockNode(opts: MockNodeOptions) {
         status: "active",
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + days * 86_400_000),
-        config: buildConfig(protocol, hostname, publicIp, {
+        config: buildConfig(protocol, hostname, publicIp, secrets, {
           username,
           password: typeof input.password === "string" ? input.password : undefined,
           transport: options.transport,

@@ -40,7 +40,7 @@ export async function getDashboardData() {
   const dayTs = sql`${localDay.toISOString()}::timestamptz`;
   const monthTs = sql`${startOfMonth.toISOString()}::timestamptz`;
 
-  const [statusCounts, accountCounts, protocolUsage, capacity, recentErrors, activity, trend, reports] = await Promise.all([
+  const [statusCounts, accountCounts, protocolUsage, capacity, recentErrors, activity, trend, reports, latestAccounts] = await Promise.all([
     db()
       .select({ status: servers.status, count: sql<number>`count(*)::int` })
       .from(servers)
@@ -114,6 +114,22 @@ export async function getDashboardData() {
       .where(and(isNotNull(vpnAccounts.activatedAt), gte(vpnAccounts.activatedAt, twoWeeksAgo)))
       .groupBy(sql`1`),
     countReportsByStatus(),
+    db()
+      .select({
+        id: vpnAccounts.id,
+        username: vpnAccounts.username,
+        status: vpnAccounts.status,
+        createdAt: vpnAccounts.createdAt,
+        protocolName: protocols.name,
+        protocolIcon: protocols.icon,
+        serverName: servers.name,
+        countryCode: servers.countryCode,
+      })
+      .from(vpnAccounts)
+      .innerJoin(protocols, eq(protocols.id, vpnAccounts.protocolId))
+      .innerJoin(servers, eq(servers.id, vpnAccounts.serverId))
+      .orderBy(desc(vpnAccounts.createdAt))
+      .limit(6),
   ]);
 
   const byStatus = Object.fromEntries(statusCounts.map((r) => [r.status, r.count])) as Record<string, number>;
@@ -138,6 +154,7 @@ export async function getDashboardData() {
     /** Start of "today" for the account counters, and the zone it is expressed in. */
     today: { since: localDay, timezone },
     reports,
+    latestAccounts,
     protocolUsage,
     capacity,
     recentErrors,

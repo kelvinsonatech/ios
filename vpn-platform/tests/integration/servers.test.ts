@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { db } from "@/server/db";
 import { protocols, serverCredentials, servers } from "@/server/db/schema";
-import { getPublicProtocolServers, listPublicServerStatus } from "@/server/protocols/catalog";
+import { getStatusPage } from "@/server/public/catalog";
 import { setProtocolEnabled } from "@/server/protocols/service";
 import { syncServer, testConnection } from "@/server/servers/sync";
 import {
@@ -12,16 +12,17 @@ import {
   updateServerConnection,
   updateServerProtocols,
 } from "@/server/servers/service";
-import { actor, createServer, resetDatabase, SECRET, startNode, teardown } from "../helpers";
+import { actor, createServer, listedServers, resetDatabase, SECRET, startNode, teardown } from "../helpers";
+import { clearPublicCache } from "@/server/public/cache";
 
-const names = async (slug: string) => ((await getPublicProtocolServers(slug))?.servers ?? []).map((s) => s.name);
+const names = async (slug: string) => (await listedServers(slug)).map((s) => s.name);
 const protocolId = async (slug: string) => (await db().select().from(protocols).where(eq(protocols.slug, slug)))[0]!.id;
 
 describe("server management & auto-publishing", () => {
   let node: Awaited<ReturnType<typeof startNode>>;
   beforeAll(async () => {
     await resetDatabase();
-    node = await startNode({ protocols: ["ssh", "ssh-ws", "vless", "vmess", "trojan", "hysteria2"] });
+    node = await startNode({ protocols: ["ssh", "ssh-ws", "vless", "vmess", "trojan", "tuic"] });
   });
   afterAll(async () => {
     await node.close();
@@ -43,7 +44,7 @@ describe("server management & auto-publishing", () => {
     const r = await syncServer(s.id, actor);
     expect(r.ok).toBe(true);
     expect(r.compatibility).toBe("compatible");
-    expect(r.unmapped).toEqual(["hysteria2"]);
+    expect(r.unmapped).toEqual(["tuic"]);
     expect(r.protocols.filter((p) => p.detected).map((p) => p.slug).sort()).toEqual(["ssh", "ssh-websocket", "trojan", "vless", "vmess"]);
     expect(r.protocols.every((p) => p.enabled)).toBe(true); // drafts auto-enable detected protocols
 
@@ -51,11 +52,11 @@ describe("server management & auto-publishing", () => {
     for (const slug of ["ssh", "ssh-websocket", "vless", "vmess", "trojan"]) expect(await names(slug)).toContain("Singapore 01");
     for (const slug of ["openvpn", "wireguard", "shadowsocks"]) expect(await names(slug)).not.toContain("Singapore 01");
 
-    const listing = await getPublicProtocolServers("vless");
-    const entry = listing!.servers.find((x) => x.name === "Singapore 01")!;
-    expect(entry.available).toBe(true);
-    expect(entry.protocols.map((p) => p.slug)).toEqual(expect.arrayContaining(["ssh", "vless"]));
-    expect(JSON.stringify(listing)).not.toMatch(/127\.0\.0\.1|node\.test|mock-key/); // no internal details leak
+    const listing = await listedServers("vless");
+    const entry = listing.find((x) => x.name === "Singapore 01")!;
+    expect(entry.availability).toBe("available");
+    expect(entry.otherProtocols.map((p) => p.slug)).toEqual(expect.arrayContaining(["ssh", "vmess"]));
+    expect(JSON.stringify(listing)).not.toMatch(/127\.0\.0\.1|mock-key|apiPort|api_port/); // no internal details leak
   });
 
   it("per-server and global protocol switches hide servers immediately", async () => {
@@ -65,7 +66,7 @@ describe("server management & auto-publishing", () => {
     expect(await names("vless")).toContain("Singapore 01");
 
     await setProtocolEnabled(await protocolId("vmess"), false, actor);
-    expect(await getPublicProtocolServers("vmess")).toBeNull();
+    expect(await names("vmess")).toEqual([]);
     await setProtocolEnabled(await protocolId("vmess"), true, actor);
     expect(await names("vmess")).toContain("Singapore 01");
   });
@@ -109,8 +110,8 @@ describe("server management & auto-publishing", () => {
   it("maintenance keeps the server listed but unavailable; disable removes it", async () => {
     const [s] = await db().select().from(servers).where(eq(servers.name, "Singapore 01"));
     await setServerLifecycle(s!.id, "maintenance", actor);
-    const m = (await getPublicProtocolServers("ssh"))!.servers.find((x) => x.id === s!.id)!;
-    expect(m).toMatchObject({ status: "maintenance", available: false, unavailableReason: "maintenance" });
+    const m = (await listedServers("ssh")).find((x) => x.id === s!.id)!;
+    expect(m).toMatchObject({ status: "maintenance", availability: "maintenance" });
     await setServerLifecycle(s!.id, "disabled", actor);
     expect(await names("ssh")).not.toContain("Singapore 01");
     await setServerLifecycle(s!.id, "active", actor);
@@ -128,7 +129,9 @@ describe("server management & auto-publishing", () => {
     expect(failed.ok).toBe(false);
     expect(failed.error?.message).toMatch(/rejected our credentials/);
     expect(await names("ssh")).not.toContain("Singapore 01");
-    expect((await listPublicServerStatus()).find((x) => x.id === s!.id)?.status).toBe("offline");
+    clearPublicCache();
+    const status = await getStatusPage();
+    expect(status.sections.flatMap((x) => x.servers).find((x) => x.id === s!.id)?.status).toBe("offline");
 
     await updateServerConnection(
       s!.id,

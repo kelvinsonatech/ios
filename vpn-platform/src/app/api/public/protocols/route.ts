@@ -1,9 +1,9 @@
 import { connection } from "next/server";
-import { listPublicProtocols } from "@/server/protocols/catalog";
-import { publicJson } from "@/server/http";
+import { listProtocolSummaries } from "@/server/public/catalog";
+import { cachedJson } from "@/server/public/http";
 
-/** GET /api/public/protocols — enabled protocols with the number of servers offering each. */
+/** GET /api/public/protocols — protocols with published servers (PublicProtocolSummary[]). */
 export async function GET() {
   await connection();
-  return publicJson({ protocols: await listPublicProtocols() });
+  return cachedJson({ protocols: await listProtocolSummaries() }, 30);
 }

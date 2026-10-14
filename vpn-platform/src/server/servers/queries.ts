@@ -17,6 +17,7 @@ export async function listServersForAdmin() {
     .select({
       id: servers.id,
       name: servers.name,
+      slug: servers.slug,
       hostname: servers.hostname,
       ipAddress: servers.ipAddress,
       country: servers.country,
@@ -33,6 +34,8 @@ export async function listServersForAdmin() {
       provisioningVersion: servers.provisioningVersion,
       capabilities: servers.capabilities,
       lastSeenAt: servers.lastSeenAt,
+      lastHealthCheckAt: servers.lastHealthCheckAt,
+      lastLatencyMs: servers.lastLatencyMs,
       lastError: servers.lastError,
       enabledProtocols: sql<number>`(select count(*)::int from ${serverProtocols} sp
         where sp.server_id = "servers"."id" and sp.enabled and sp.detected)`,
@@ -79,13 +82,6 @@ export async function getServerDetail(id: string) {
     .orderBy(desc(serverHealth.checkedAt))
     .limit(1);
 
-  const healthHistory = await db()
-    .select({ checkedAt: serverHealth.checkedAt, reachable: serverHealth.reachable, latencyMs: serverHealth.latencyMs })
-    .from(serverHealth)
-    .where(eq(serverHealth.serverId, id))
-    .orderBy(desc(serverHealth.checkedAt))
-    .limit(30);
-
   const protocolRows = await db()
     .select({
       protocolId: protocols.id,
@@ -122,7 +118,7 @@ export async function getServerDetail(id: string) {
 
   const compatibility = evaluateCompatibility(server.apiVersion, server.provisioningVersion, env().NODE_AGENT_LATEST_VERSION);
 
-  return { server, credential: credential ?? null, latestHealth: latestHealth ?? null, healthHistory, protocols: protocolRows, recentLogs, compatibility };
+  return { server, credential: credential ?? null, latestHealth: latestHealth ?? null, protocols: protocolRows, recentLogs, compatibility };
 }
 
 export type ServerDetail = NonNullable<Awaited<ReturnType<typeof getServerDetail>>>;

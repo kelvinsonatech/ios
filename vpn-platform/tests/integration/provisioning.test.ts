@@ -17,6 +17,7 @@ import {
 import { publishServer } from "@/server/servers/service";
 import { syncServer } from "@/server/servers/sync";
 import { actor, createServer, resetDatabase, startNode, teardown } from "../helpers";
+import { OWNER_PROTOCOLS } from "../../mock-node/mock-node";
 
 const sshInput = (username: string) => ({ username, password: "S3cure-pass", duration: "7" });
 let ipCounter = 0;
@@ -33,7 +34,8 @@ describe("provisioning lifecycle", () => {
 
   beforeAll(async () => {
     await resetDatabase();
-    node = await startNode();
+    // The owner's protocol set plus two legacy ids used below (SSH WebSocket, NoobzVPN).
+    node = await startNode({ protocols: [...OWNER_PROTOCOLS, "ssh-ws", "noobzvpn"] });
     const s = await createServer(node.port, { name: "Provisioning SG", maxAccounts: 50 });
     await syncServer(s.id);
     await publishServer(s.id, actor);

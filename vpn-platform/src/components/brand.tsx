@@ -18,11 +18,12 @@ export function BrandMark({ className }: { className?: string }) {
   );
 }
 
-export function Brand({ className, suffix }: { className?: string; suffix?: string }) {
+/** Logo + site name. `name` overrides the build-time default (the public site passes settings.siteName). */
+export function Brand({ className, suffix, name, markClassName }: { className?: string; suffix?: string; name?: string; markClassName?: string }) {
   return (
     <span className={cn("flex items-center gap-2 font-semibold tracking-tight", className)}>
-      <BrandMark />
-      <span>{siteConfig.name}</span>
+      <BrandMark className={markClassName} />
+      <span className="truncate">{name || siteConfig.name}</span>
       {suffix ? <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{suffix}</span> : null}
     </span>
   );

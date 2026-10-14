@@ -5,6 +5,7 @@ import {
   ConfigReader,
   formatPorts,
   hostOf,
+  hostValue,
   portsFrom,
   requireRemoteId,
   resolveExpiry,
@@ -16,14 +17,17 @@ import { linuxUsernameGuard, passwordGuard } from "./guards";
  * SSH-family adapter. SSH, SSH SSL, SSH WebSocket, SlowDNS and UDP Custom all provision a system
  * account on the node; they differ in which connection details are emphasised.
  *
- * Expected `config` from the node (contract v1, adapted in PHASE 11 to the real script output):
+ * Expected `config` from the node (docs/10-script-api-prompt.md section 8):
  * {
  *   host, ip?, username?, password?,
  *   ports?: { openssh, dropbear, ssl, ws, ws_tls, udp_custom, slowdns },   // number[] or "1-65535"
+ *   sni?: string                                                         // ssh-ssl
  *   slowdns?: { nameserver, public_key },
- *   payload?: string                                                     // WebSocket payload
+ *   payload?: string,                                                    // HTTP payload template
+ *   payloads?: [{ name, value }]                                         // several templates
  * }
  * Missing ports fall back to the ports the node advertised during capability detection.
+ * Payloads keep the script's own tokens ([crlf], [host], ...) because the client apps expand them.
  */
 export type SshVariant = "ssh" | "ssh-ssl" | "ssh-websocket" | "slowdns" | "udp-custom";
 
@@ -41,20 +45,39 @@ const ALL_OUTPUTS: OutputFieldDefinition[] = [
   { key: "slowdns_ports", label: "SlowDNS port", kind: "text", sensitive: false, copyable: true },
   { key: "slowdns_nameserver", label: "SlowDNS nameserver", kind: "text", sensitive: false, copyable: true },
   { key: "slowdns_public_key", label: "SlowDNS public key", kind: "text", sensitive: false, copyable: true },
-  { key: "ws_payload", label: "WebSocket payload", kind: "multiline", sensitive: false, copyable: true },
+  { key: "sni", label: "SNI", kind: "text", sensitive: false, copyable: true },
+  { key: "payload", label: "Payload", kind: "multiline", sensitive: false, copyable: true },
   { key: "udp_custom_config", label: "UDP Custom config", kind: "secret", sensitive: true, copyable: true },
 ];
 
 const VISIBLE: Record<SshVariant, string[]> = {
   ssh: [
     "host", "ip", "username", "password", "openssh_ports", "dropbear_ports", "ssl_ports", "ws_ports",
-    "ws_tls_ports", "udp_custom_ports", "slowdns_nameserver", "slowdns_public_key",
+    "ws_tls_ports", "udp_custom_ports", "slowdns_nameserver", "slowdns_public_key", "payload",
   ],
-  "ssh-ssl": ["host", "ip", "username", "password", "ssl_ports", "ws_tls_ports"],
-  "ssh-websocket": ["host", "ip", "username", "password", "ws_ports", "ws_tls_ports", "ws_payload"],
-  slowdns: ["host", "ip", "username", "password", "slowdns_nameserver", "slowdns_public_key", "slowdns_ports"],
-  "udp-custom": ["host", "ip", "username", "password", "udp_custom_ports", "udp_custom_config"],
+  "ssh-ssl": ["host", "ip", "username", "password", "ssl_ports", "ws_tls_ports", "sni", "payload"],
+  "ssh-websocket": ["host", "ip", "username", "password", "ws_ports", "ws_tls_ports", "payload"],
+  slowdns: ["host", "ip", "username", "password", "slowdns_nameserver", "slowdns_public_key", "slowdns_ports", "openssh_ports", "payload"],
+  "udp-custom": ["host", "ip", "username", "password", "udp_custom_ports", "udp_custom_config", "payload"],
 };
+
+/** Output keys added after the first release; seedProtocols() appends them to existing protocols. */
+export const SSH_UPGRADE_OUTPUTS = ["sni", "payload"];
+
+/** One payload, or several as "Name:" blocks separated by a blank line. */
+function readPayload(cfg: ConfigReader): string | undefined {
+  const blocks: string[] = [];
+  for (const raw of cfg.array("payloads")) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const r = new ConfigReader(raw as Record<string, unknown>);
+    const value = r.text("value", 2048)?.trim();
+    if (!value) continue;
+    const name = r.str("name", 48);
+    blocks.push(name ? `${name}:\n${value}` : value);
+  }
+  if (blocks.length) return blocks.slice(0, 8).join("\n\n");
+  return cfg.text("payload", 2048)?.trim() || undefined;
+}
 
 const LABELS: Record<SshVariant, string> = {
   ssh: "SSH",
@@ -121,7 +144,7 @@ export function createSshAdapter(variant: SshVariant): ProtocolAdapter {
 
       const v = new ValuesBuilder()
         .set("host", host)
-        .set("ip", cfg.str("ip", 64) ?? ctx.server.ipAddress)
+        .set("ip", hostValue(cfg, "ip") ?? ctx.server.ipAddress)
         .set("username", username)
         .set("password", password, true)
         .set("openssh_ports", formatPorts(portsFrom(cfg, ports, "openssh", "ssh")))
@@ -131,9 +154,10 @@ export function createSshAdapter(variant: SshVariant): ProtocolAdapter {
         .set("ws_tls_ports", formatPorts(portsFrom(cfg, ports, "ws_tls", "wss")))
         .set("udp_custom_ports", formatPorts(udp))
         .set("slowdns_ports", formatPorts(portsFrom(cfg, ports, "slowdns", "dns")))
-        .set("slowdns_nameserver", cfg.str("slowdns.nameserver", 253))
+        .set("slowdns_nameserver", hostValue(cfg, "slowdns.nameserver"))
         .set("slowdns_public_key", cfg.str("slowdns.public_key", 256))
-        .set("ws_payload", cfg.text("payload", 2048));
+        .set("sni", hostValue(cfg, "sni"))
+        .set("payload", readPayload(cfg));
 
       if (variant === "udp-custom" && password && udp !== undefined) {
         const range = Array.isArray(udp) ? udp.join(",") : udp;

@@ -3,16 +3,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/admin/page-header";
 import { RelativeTime } from "@/components/admin/relative-time";
+import { UserAvatar } from "@/components/user-avatar";
 import { requirePermission } from "@/server/auth/guards";
 import { ROLE_LABELS, ROLE_PERMISSIONS } from "@/server/auth/rbac";
 import { listAdmins } from "@/server/admins/service";
+import { adminAvatar } from "@/server/avatar";
+import { getSiteSettings } from "@/server/settings/service";
 import { AdminRowMenu, CreateAdminForm } from "./admin-forms";
 
 export const metadata = { title: "Administrators" };
 
 export default async function AdminsPage() {
   const { admin: me } = await requirePermission("admins:manage");
-  const rows = await listAdmins();
+  const [rows, settings] = await Promise.all([listAdmins(), getSiteSettings()]);
   return (
     <>
       <PageHeader title="Administrators" description="Who can access the admin panel, and what they can do." />
@@ -32,8 +35,16 @@ export default async function AdminsPage() {
               {rows.map((a) => (
                 <TableRow key={a.id} className={!a.isActive ? "opacity-60" : undefined}>
                   <TableCell>
-                    <span className="font-medium">{a.name}</span>
-                    <span className="block text-xs text-muted-foreground">{a.email}</span>
+                    <span className="flex items-center gap-3">
+                      <UserAvatar src={adminAvatar(a.id, settings.avatarStyle)} size={40} />
+                      <span className="grid min-w-0">
+                        <span className="flex items-center gap-2 font-medium">
+                          <span className="truncate">{a.name}</span>
+                          {a.id === me.id ? <Badge variant="info">You</Badge> : null}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">{a.email}</span>
+                      </span>
+                    </span>
                   </TableCell>
                   <TableCell>
                     <Badge variant={a.role === "super_admin" ? "default" : "secondary"}>{ROLE_LABELS[a.role]}</Badge>

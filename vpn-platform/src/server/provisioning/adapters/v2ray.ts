@@ -4,12 +4,13 @@ import {
   AdapterResponseError,
   ConfigReader,
   hostOf,
+  hostValue,
   requireRemoteId,
   resolveExpiry,
   validUri,
   ValuesBuilder,
 } from "./base";
-import { remarkGuard, transportGuard } from "./guards";
+import { bugHostGuard, remarkGuard, sniTypeGuard, transportGuard } from "./guards";
 
 /**
  * VMess / VLESS / Trojan (Xray / V2Ray family).
@@ -25,6 +26,11 @@ import { remarkGuard, transportGuard } from "./guards";
  * }
  * The node is authoritative: when it supplies `uri` we use it verbatim (after scheme validation);
  * otherwise a standard share link is assembled from the node-provided values.
+ *
+ * Optional user inputs `sni_bug` (a "bug host") and `sni_type` change only the share links shown to
+ * the user, never the account on the node (they are stripped from the node request):
+ *  - "sni" (default): the bug host becomes the TLS SNI and the HTTP Host header;
+ *  - "address": the links connect to the bug host, with SNI/Host still naming the real server.
  */
 export type V2rayFamily = "vmess" | "vless" | "trojan";
 
@@ -55,7 +61,15 @@ const OUTPUTS = (family: V2rayFamily): OutputFieldDefinition[] => [
   { key: "path", label: "Path", kind: "text", sensitive: false, copyable: true },
   { key: "service_name", label: "gRPC service name", kind: "text", sensitive: false, copyable: true },
   { key: "sni", label: "SNI", kind: "text", sensitive: false, copyable: true },
+  { key: "bug_host", label: "Bug host", kind: "text", sensitive: false, copyable: true },
 ];
+
+/** Website-only inputs: applied to the generated links, never sent to the node. */
+const LINK_ONLY_INPUTS = ["sni_bug", "sni_type"];
+
+/** Fields and output keys added after the first release; seedProtocols() adds them to existing protocols. */
+export const V2RAY_UPGRADE_FIELDS = LINK_ONLY_INPUTS;
+export const V2RAY_UPGRADE_OUTPUTS = ["bug_host"];
 
 export const V2RAY_DEFAULT_FIELDS: SeedField[] = [
   {
@@ -79,6 +93,28 @@ export const V2RAY_DEFAULT_FIELDS: SeedField[] = [
     ],
     validation: {},
     defaultValue: "ws",
+  },
+  {
+    key: "sni_bug",
+    label: "SNI / bug host",
+    type: "text",
+    required: false,
+    placeholder: "e.g. cdn.example.com (optional)",
+    helpText: "Optional. Only changes the share links you receive.",
+    options: [],
+    validation: { maxLength: 128 },
+  },
+  {
+    key: "sni_type",
+    label: "Use the bug host as",
+    type: "select",
+    required: false,
+    options: [
+      { value: "sni", label: "SNI / Host header" },
+      { value: "address", label: "Connection address" },
+    ],
+    validation: {},
+    defaultValue: "sni",
   },
   { key: "duration", label: "Duration", type: "duration", required: true, options: [], validation: {} },
 ];
@@ -139,6 +175,48 @@ function buildUri(family: V2rayFamily, cred: string, host: string, remark: strin
   return `${family}://${q(cred)}@${host}:${c.port}?${params.toString()}#${q(remark)}`;
 }
 
+export type BugHost = { host: string; mode: "sni" | "address" };
+
+/**
+ * Apply a bug host to a share link (ours or the node's). Returns the link unchanged when it cannot
+ * be parsed, so a malformed node link is never "fixed" into something else.
+ */
+export function applyBugHost(family: V2rayFamily, uri: string, bug: BugHost, serverHost: string): string {
+  try {
+    if (family === "vmess") {
+      const json = JSON.parse(Buffer.from(uri.slice("vmess://".length), "base64").toString("utf8")) as Record<string, unknown>;
+      if (!json || typeof json !== "object" || Array.isArray(json)) return uri;
+      const tls = json.tls === "tls";
+      if (bug.mode === "address") {
+        const real = typeof json.add === "string" && json.add ? json.add : serverHost;
+        json.add = bug.host;
+        if (!json.host) json.host = real;
+        if (tls && !json.sni) json.sni = real;
+      } else {
+        json.host = bug.host;
+        if (tls) json.sni = bug.host;
+      }
+      return `vmess://${Buffer.from(JSON.stringify(json)).toString("base64")}`;
+    }
+    const url = new URL(uri);
+    if (!url.hostname) return uri;
+    const params = url.searchParams;
+    const tls = params.get("security") === "tls" || params.get("security") === "reality" || (family === "trojan" && !params.has("security"));
+    if (bug.mode === "address") {
+      const real = url.hostname;
+      url.hostname = bug.host;
+      if (!params.get("host")) params.set("host", real);
+      if (tls && !params.get("sni")) params.set("sni", real);
+    } else {
+      params.set("host", bug.host);
+      if (tls) params.set("sni", bug.host);
+    }
+    return url.toString();
+  } catch {
+    return uri;
+  }
+}
+
 function uniq<T>(xs: (T | undefined)[]): T[] {
   return [...new Set(xs.filter((x): x is T => x !== undefined))];
 }
@@ -149,7 +227,7 @@ export function createV2rayAdapter(family: V2rayFamily): ProtocolAdapter {
     key: family,
     label,
     description: `${label} account on the node's Xray/V2Ray core. Returns share links and QR codes.`,
-    inputGuards: { username: remarkGuard, transport: transportGuard },
+    inputGuards: { username: remarkGuard, transport: transportGuard, sni_bug: bugHostGuard, sni_type: sniTypeGuard },
     requiredInputs: ["username"],
     supportsRenew: true,
     outputFields: OUTPUTS(family),
@@ -161,11 +239,12 @@ export function createV2rayAdapter(family: V2rayFamily): ProtocolAdapter {
       if (transport && offered.length > 0 && !offered.includes(transport)) {
         throw new AdapterResponseError(`This server does not offer the "${transport}" transport.`);
       }
+      const options = Object.fromEntries(Object.entries(input.options).filter(([k]) => !LINK_ONLY_INPUTS.includes(k)));
       return {
         protocol: ctx.serverProtocol.nodeIdentifier ?? ctx.protocol.slug,
         username: input.username,
         durationDays: input.durationDays,
-        options: input.options,
+        options,
       };
     },
 
@@ -179,17 +258,21 @@ export function createV2rayAdapter(family: V2rayFamily): ProtocolAdapter {
       const alterId = cfg.int("alter_id");
       const flow = cfg.str("flow", 64);
       const conns = readConnections(cfg);
+      const bugHost = input.options.sni_bug?.trim().toLowerCase();
+      const bug: BugHost | null = bugHost ? { host: bugHost, mode: input.options.sni_type === "address" ? "address" : "sni" } : null;
+      const finish = (uri: string) => (bug ? applyBugHost(family, uri, bug, host) : uri);
 
       const artifacts: Artifact[] = [];
       conns.forEach((c, i) => {
-        const uri = validUri(c.uri, family) ?? buildUri(family, cred, host, remark, c, alterId, flow);
+        const uri = finish(validUri(c.uri, family) ?? buildUri(family, cred, host, remark, c, alterId, flow));
         const name = c.name ?? `${c.network.toUpperCase()} ${c.security === "none" ? "" : c.security.toUpperCase()}`.trim();
         artifacts.push({ key: `link_${i + 1}`, label: `${label} ${name}`, kind: "uri", content: uri, qr: true, sensitive: true });
       });
       // Links supplied directly as config.links: [{ name, uri }]
       for (const raw of cfg.array("links")) {
         const r = new ConfigReader((raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>);
-        const uri = validUri(r.str("uri", 4096), family);
+        const nodeUri = validUri(r.str("uri", 4096), family);
+        const uri = nodeUri ? finish(nodeUri) : undefined;
         if (uri && !artifacts.some((a) => a.content === uri)) {
           artifacts.push({ key: `link_${artifacts.length + 1}`, label: `${label} ${r.str("name", 64) ?? ""}`.trim(), kind: "uri", content: uri, qr: true, sensitive: true });
         }
@@ -198,7 +281,7 @@ export function createV2rayAdapter(family: V2rayFamily): ProtocolAdapter {
 
       const v = new ValuesBuilder()
         .set("host", host)
-        .set("ip", cfg.str("ip", 64) ?? ctx.server.ipAddress)
+        .set("ip", hostValue(cfg, "ip") ?? ctx.server.ipAddress)
         .set("remark", remark)
         .set(family === "trojan" ? "password" : "uuid", cred, true)
         .set("alter_id", family === "vmess" ? (alterId ?? 0) : undefined)
@@ -208,7 +291,8 @@ export function createV2rayAdapter(family: V2rayFamily): ProtocolAdapter {
         .set("networks", uniq(conns.map((c) => c.network)).join(", "))
         .set("path", uniq(conns.map((c) => c.path)).join(", "))
         .set("service_name", uniq(conns.map((c) => c.serviceName)).join(", "))
-        .set("sni", uniq(conns.map((c) => c.sni)).join(", "));
+        .set("sni", uniq(conns.map((c) => c.sni)).join(", "))
+        .set("bug_host", bug ? `${bug.host} (${bug.mode === "address" ? "connection address" : "SNI / Host header"})` : undefined);
 
       return {
         remoteAccountId: requireRemoteId(account),

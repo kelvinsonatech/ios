@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlusIcon } from "lucide-react";
+import { ExternalLinkIcon, PlusIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import { listProtocolsForAdmin } from "@/server/protocols/service";
 import { ProtocolToggle } from "./protocol-toggle";
 
 export const metadata = { title: "Protocols" };
+
+const CATEGORY_LABEL: Record<string, string> = { ssh: "SSH", v2ray: "V2Ray / Xray", vpn: "VPN", proxy: "Proxy" };
 
 export default async function ProtocolsPage() {
   const { admin } = await requirePermission("protocols:view");
@@ -47,19 +49,33 @@ export default async function ProtocolsPage() {
           <TableBody>
             {rows.map(({ protocol: p, serversPublished, serversDetected, activeAccounts }) => (
               <TableRow key={p.id}>
-                <TableCell>
-                  <Link href={`/admin/protocols/${p.id}`} className="group flex items-center gap-3">
-                    <span className="flex size-8 items-center justify-center rounded-md bg-accent text-accent-foreground">
+                <TableCell className="max-w-96">
+                  <div className="flex items-center gap-3">
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground ring-1 ring-primary/10">
                       <ProtocolIcon name={p.icon} className="size-4" />
                     </span>
-                    <span className="grid">
-                      <span className="font-medium group-hover:underline">{p.name}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        /{p.slug} · {p.adapterKey}
+                    <span className="grid min-w-0 gap-0.5">
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <Link href={`/admin/protocols/${p.id}`} className="font-medium hover:underline">
+                          {p.name}
+                        </Link>
+                        <Badge variant="muted">{CATEGORY_LABEL[p.category] ?? p.category}</Badge>
+                        {!p.isSystem ? <Badge variant="info">Custom</Badge> : null}
+                      </span>
+                      {p.description ? <span className="truncate text-xs text-muted-foreground">{p.description}</span> : null}
+                      <span className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                        {p.enabled && serversPublished > 0 ? (
+                          <a href={`/${p.slug}`} target="_blank" rel="noopener" className="inline-flex items-center gap-1 hover:text-primary hover:underline">
+                            /{p.slug}
+                            <ExternalLinkIcon className="size-3" />
+                          </a>
+                        ) : (
+                          <span>/{p.slug}</span>
+                        )}
+                        <span>· {p.adapterKey}</span>
                       </span>
                     </span>
-                    {!p.isSystem ? <Badge variant="info">Custom</Badge> : null}
-                  </Link>
+                  </div>
                 </TableCell>
                 <TableCell className="hidden max-w-64 truncate font-mono text-xs text-muted-foreground md:table-cell">
                   {p.nodeIdentifiers.join(", ") || "—"}
@@ -78,7 +94,9 @@ export default async function ProtocolsPage() {
           </TableBody>
         </Table>
       </Card>
-      <p className="mt-3 text-xs text-muted-foreground">Servers: published / detected.</p>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Servers: published / detected. A protocol page goes live once at least one published server offers the protocol.
+      </p>
     </>
   );
 }

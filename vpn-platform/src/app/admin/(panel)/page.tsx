@@ -22,17 +22,23 @@ import { Capacity } from "@/components/admin/capacity";
 import { ServerStatusBadge } from "@/components/admin/status-badge";
 import { RelativeTime } from "@/components/admin/relative-time";
 import { ProtocolIcon } from "@/components/protocol-icon";
-import { flagEmoji } from "@/lib/countries";
+import { Flag } from "@/components/public/flag";
+import { UserAvatar } from "@/components/user-avatar";
+import { Badge } from "@/components/ui/badge";
 import { formatNumber } from "@/lib/format";
 import { requirePermission } from "@/server/auth/guards";
 import { can } from "@/server/auth/rbac";
 import { getDashboardData } from "@/server/dashboard/queries";
+import { getSiteSettings } from "@/server/settings/service";
+
+const ACCOUNT_BADGE = { active: "success", pending: "info", expired: "muted", revoked: "warning", failed: "danger" } as const;
 
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const { admin } = await requirePermission("dashboard:view");
-  const d = await getDashboardData();
+  const [d, settings] = await Promise.all([getDashboardData(), getSiteSettings()]);
+  const viewAccounts = can(admin.role, "accounts:view");
   const maxUsage = Math.max(1, ...d.protocolUsage.map((p) => p.active));
   const maxTrend = Math.max(1, ...d.trend.map((t) => t.count));
 
@@ -145,6 +151,42 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
 
+        {viewAccounts ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Latest accounts</CardTitle>
+              <CardAction>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/admin/accounts">All accounts</Link>
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent>
+              <ul className="grid gap-3">
+                {d.latestAccounts.map((a) => (
+                  <li key={a.id} className="flex items-center gap-3">
+                    <UserAvatar src={`/admin/accounts/avatar/${a.id}?s=${encodeURIComponent(settings.avatarStyle)}`} size={36} />
+                    <span className="grid min-w-0 flex-1">
+                      <span className="flex items-center gap-2 text-sm">
+                        <span className="truncate font-medium">{a.username ?? "Unnamed"}</span>
+                        {a.status !== "active" ? <Badge variant={ACCOUNT_BADGE[a.status]}>{a.status}</Badge> : null}
+                      </span>
+                      <span className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+                        <ProtocolIcon name={a.protocolIcon} className="size-3" />
+                        {a.protocolName} · <Flag code={a.countryCode} className="h-2.5 w-3.5" /> {a.serverName}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      <RelativeTime date={a.createdAt} />
+                    </span>
+                  </li>
+                ))}
+                {d.latestAccounts.length === 0 ? <li className="text-sm text-muted-foreground">No accounts yet.</li> : null}
+              </ul>
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card>
           <CardHeader>
             <CardTitle>Server capacity</CardTitle>
@@ -159,7 +201,7 @@ export default async function DashboardPage() {
               <Link key={s.id} href={`/admin/servers/${s.id}`} className="grid gap-1.5 rounded-md hover:bg-muted/40">
                 <span className="flex items-center justify-between gap-2 text-sm">
                   <span className="flex items-center gap-2 truncate font-medium">
-                    <span aria-hidden>{flagEmoji(s.countryCode)}</span>
+                    <Flag code={s.countryCode} className="h-3.5 w-5" />
                     {s.name}
                   </span>
                   <ServerStatusBadge status={s.status} />
@@ -168,30 +210,6 @@ export default async function DashboardPage() {
               </Link>
             ))}
             {d.capacity.length === 0 ? <p className="text-sm text-muted-foreground">No published servers yet.</p> : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent errors</CardTitle>
-            <CardAction>
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/admin/logs?level=error">View</Link>
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            <ul className="grid gap-3">
-              {d.recentErrors.map((e) => (
-                <li key={e.id} className="grid gap-0.5 text-sm">
-                  <span className="line-clamp-2">{e.message}</span>
-                  <span className="text-xs text-muted-foreground">
-                    <span className="font-mono">{e.event}</span> · <RelativeTime date={e.createdAt} />
-                  </span>
-                </li>
-              ))}
-              {d.recentErrors.length === 0 ? <li className="text-sm text-muted-foreground">No errors. All quiet.</li> : null}
-            </ul>
           </CardContent>
         </Card>
 
@@ -221,6 +239,30 @@ export default async function DashboardPage() {
             </ol>
           </CardContent>
         </Card>
+        <Card className="lg:col-span-3">
+          <CardHeader>
+            <CardTitle>Recent errors</CardTitle>
+            <CardAction>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/admin/logs?level=error">View</Link>
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid gap-x-8 gap-y-3 md:grid-cols-2">
+              {d.recentErrors.map((e) => (
+                <li key={e.id} className="grid gap-0.5 text-sm">
+                  <span className="line-clamp-2">{e.message}</span>
+                  <span className="text-xs text-muted-foreground">
+                    <span className="font-mono">{e.event}</span> · <RelativeTime date={e.createdAt} />
+                  </span>
+                </li>
+              ))}
+              {d.recentErrors.length === 0 ? <li className="text-sm text-muted-foreground">No errors. All quiet.</li> : null}
+            </ul>
+          </CardContent>
+        </Card>
+
       </div>
     </>
   );
