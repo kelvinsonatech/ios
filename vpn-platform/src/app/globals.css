@@ -41,6 +41,19 @@
   --sidebar-foreground: oklch(0.3 0.02 262);
   --sidebar-accent: oklch(0.935 0.01 255);
   --sidebar-border: oklch(0.912 0.008 255);
+
+  /* Public site: hero bands, the top reset bar and the footer. */
+  --hero-from: oklch(0.56 0.135 162);
+  --hero-via: oklch(0.52 0.115 190);
+  --hero-to: oklch(0.45 0.13 250);
+  --hero-foreground: oklch(0.99 0.006 170);
+  --bar-from: oklch(0.3 0.05 255);
+  --bar-via: oklch(0.38 0.08 205);
+  --bar-to: oklch(0.47 0.11 165);
+  --footer: oklch(0.205 0.022 258);
+  --footer-foreground: oklch(0.95 0.006 255);
+  --footer-muted: oklch(0.72 0.02 258);
+  --footer-border: oklch(0.3 0.02 258);
 }
 
 .dark {
@@ -75,11 +88,24 @@
   --sidebar-foreground: oklch(0.85 0.01 255);
   --sidebar-accent: oklch(0.25 0.02 258);
   --sidebar-border: oklch(0.27 0.017 258);
+
+  --hero-from: oklch(0.37 0.09 165);
+  --hero-via: oklch(0.31 0.07 198);
+  --hero-to: oklch(0.27 0.08 262);
+  --hero-foreground: oklch(0.98 0.006 170);
+  --bar-from: oklch(0.2 0.025 258);
+  --bar-via: oklch(0.27 0.05 210);
+  --bar-to: oklch(0.34 0.08 168);
+  --footer: oklch(0.135 0.012 258);
+  --footer-foreground: oklch(0.93 0.006 255);
+  --footer-muted: oklch(0.66 0.02 258);
+  --footer-border: oklch(0.24 0.016 258);
 }
 
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  /* Self-hosted variable fonts (imported once in src/app/layout.tsx); system stacks as fallbacks. */
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -111,11 +137,68 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
   --color-sidebar-border: var(--sidebar-border);
+  --color-hero-foreground: var(--hero-foreground);
+  --color-footer: var(--footer);
+  --color-footer-foreground: var(--footer-foreground);
+  --color-footer-muted: var(--footer-muted);
+  --color-footer-border: var(--footer-border);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+}
+
+@theme {
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 10s ease-in-out infinite;
+  --animate-glow: glow 4s ease-in-out infinite;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  @keyframes glow {
+    0%,
+    100% {
+      opacity: 0.55;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+}
+
+/* Brand gradient used by hero bands and final calls to action (light and dark values above). */
+@utility bg-hero {
+  background-color: var(--hero-via);
+  background-image:
+    radial-gradient(55% 75% at 88% 8%, color-mix(in oklch, var(--hero-to) 75%, transparent), transparent 70%),
+    radial-gradient(45% 65% at 6% 95%, color-mix(in oklch, var(--hero-from) 85%, transparent), transparent 70%),
+    linear-gradient(118deg, var(--hero-from), var(--hero-via) 52%, var(--hero-to));
+}
+
+/* Faint dot grid laid over hero bands; fades out towards the edges. */
+@utility bg-hero-dots {
+  background-image: radial-gradient(color-mix(in oklch, white 26%, transparent) 1px, transparent 1.3px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(ellipse 70% 80% at 50% 40%, black 25%, transparent 80%);
+}
+
+@utility bg-bar {
+  background-image: linear-gradient(90deg, var(--bar-from), var(--bar-via) 55%, var(--bar-to));
+}
+
+/* Break out of a centred page container to the full viewport width (the public layout clips x). */
+@utility full-bleed {
+  width: 100vw;
+  max-width: none;
+  margin-inline: calc(50% - 50vw);
 }
 
 @layer base {
@@ -124,6 +207,22 @@
   }
   html {
     -webkit-text-size-adjust: 100%;
+    /* Keeps #anchors (e.g. /vless#guide) clear of the sticky public header. */
+    scroll-padding-top: 5.5rem;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
   body {
     @apply bg-background text-foreground antialiased;
@@ -131,5 +230,38 @@
   }
   ::selection {
     background: color-mix(in oklch, var(--primary) 25%, transparent);
+  }
+}
+
+/* Long-form text on the public about/legal pages (no typography plugin needed). */
+@layer components {
+  .prose-vl {
+    @apply max-w-none text-[0.95rem] leading-7 text-pretty text-muted-foreground;
+  }
+  .prose-vl h2 {
+    @apply mt-10 mb-3 scroll-mt-28 text-xl font-semibold tracking-tight text-foreground first:mt-0;
+  }
+  .prose-vl h3 {
+    @apply mt-6 mb-2 font-semibold text-foreground;
+  }
+  .prose-vl p,
+  .prose-vl ul,
+  .prose-vl ol {
+    @apply my-3;
+  }
+  .prose-vl ul {
+    @apply list-disc space-y-1.5 pl-5 marker:text-primary;
+  }
+  .prose-vl ol {
+    @apply list-decimal space-y-1.5 pl-5 marker:text-muted-foreground;
+  }
+  .prose-vl strong {
+    @apply font-semibold text-foreground;
+  }
+  .prose-vl a {
+    @apply font-medium text-primary underline decoration-primary/30 underline-offset-4 transition-colors hover:decoration-primary;
+  }
+  .prose-vl code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-foreground;
   }
 }

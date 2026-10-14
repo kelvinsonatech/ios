@@ -8,6 +8,7 @@ import {
   CheckIcon,
   ClockIcon,
   ExternalLinkIcon,
+  EyeIcon,
   GaugeIcon,
   GlobeIcon,
   InfoIcon,
@@ -19,7 +20,6 @@ import {
   RotateCcwIcon,
   SaveIcon,
   ScrollTextIcon,
-  SendIcon,
   TriangleAlertIcon,
   TrashIcon,
 } from "lucide-react";
@@ -55,6 +55,7 @@ interface Draft {
   avatarStyle: AvatarStyle;
   contact: { email: string; telegramUrl: string };
   rules: Row[];
+  display: SiteSettings["display"];
 }
 
 let rowSeq = 0;
@@ -81,6 +82,7 @@ function toDraft(s: SiteSettings): Draft {
     avatarStyle: s.avatarStyle,
     contact: { email: s.contact.email ?? "", telegramUrl: s.contact.telegramUrl ?? "" },
     rules: s.rules.map((value, i) => ({ id: `r${i}`, value })),
+    display: { ...s.display },
   };
 }
 
@@ -112,6 +114,7 @@ function toPayload(d: Draft) {
     avatarStyle: d.avatarStyle,
     contact: { email: orNull(d.contact.email), telegramUrl: orNull(d.contact.telegramUrl) },
     rules: d.rules.map((r) => r.value),
+    display: { showHostnames: d.display.showHostnames, showStats: d.display.showStats },
   };
 }
 
@@ -147,6 +150,7 @@ function humanSeconds(s: number) {
 const SECTIONS = [
   { id: "general", label: "General", icon: GlobeIcon },
   { id: "announcement", label: "Announcement bar", icon: MegaphoneIcon },
+  { id: "display", label: "Public display", icon: EyeIcon },
   { id: "quotas", label: "Quotas & resets", icon: ClockIcon },
   { id: "health", label: "Health monitor", icon: GaugeIcon },
   { id: "avatars", label: "Avatars", icon: PaletteIcon },
@@ -196,6 +200,41 @@ function Section({
       </CardHeader>
       <CardContent className="grid gap-5">{children}</CardContent>
     </Card>
+  );
+}
+
+/** A labelled switch with an explanation and a small preview of what visitors see. */
+function ToggleRow({
+  id,
+  title,
+  description,
+  checked,
+  onChange,
+  example,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  example: string;
+}) {
+  return (
+    <div className="flex items-start gap-4 rounded-lg border bg-muted/20 p-4">
+      <div className="grid min-w-0 flex-1 gap-1">
+        <label htmlFor={id} className="text-sm font-medium">
+          {title}
+        </label>
+        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="mt-1 flex items-center gap-1.5 text-xs">
+          <span className="text-muted-foreground">Visitors see:</span>
+          <span className={cn("rounded-sm px-1.5 py-px font-mono", checked ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground")}>
+            {example}
+          </span>
+        </p>
+      </div>
+      <Switch id={id} checked={checked} onCheckedChange={onChange} className="mt-0.5" />
+    </div>
   );
 }
 
@@ -525,6 +564,33 @@ export function SettingsForm({
           </div>
         </Section>
 
+        {/* Display ------------------------------------------------------------------- */}
+        <Section
+          id="display"
+          icon={EyeIcon}
+          title="Public display"
+          description="What the protocol, country and status pages reveal about your servers and usage."
+        >
+          <div className="grid gap-3">
+            <ToggleRow
+              id="display-hostnames"
+              title="Show server hostnames"
+              checked={draft.display.showHostnames}
+              onChange={(v) => patch((d) => ({ ...d, display: { ...d.display, showHostnames: v } }))}
+              description="Each server card and the status page show the VPN hostname users connect to (they receive it with their account anyway). The server's IP address, management API port and credentials are never shown."
+              example={draft.display.showHostnames ? "de1.example.net" : "Hidden"}
+            />
+            <ToggleRow
+              id="display-stats"
+              title="Show account statistics"
+              checked={draft.display.showStats}
+              onChange={(v) => patch((d) => ({ ...d, display: { ...d.display, showStats: v } }))}
+              description="Footer counters with the number of accounts created in total and today, per protocol. Turn off to keep usage private."
+              example={draft.display.showStats ? "12 840 accounts · +96 today" : "Hidden"}
+            />
+          </div>
+        </Section>
+
         {/* Quotas -------------------------------------------------------------------- */}
         <Section
           id="quotas"
@@ -771,7 +837,7 @@ export function SettingsForm({
         </Section>
 
         {/* Contact ------------------------------------------------------------------- */}
-        <Section id="contact" icon={SendIcon} title="Contact" description="Shown on the contact page and in the footer. Leave a field blank to hide it.">
+        <Section id="contact" icon={MailIcon} title="Contact" description="Shown on the contact page and in the footer. Leave a field blank to hide it.">
           <div className="grid gap-4 sm:grid-cols-2">
             <FormField id="contact-email" label="Support email" optional errors={err("contact.email")}>
               <Input
@@ -926,6 +992,8 @@ function sectionOf(key: string): string {
       return "general";
     case "announcement":
       return "announcement";
+    case "display":
+      return "display";
     case "quota":
       return "quotas";
     case "health":

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { db } from "@/server/db";
 import {
   protocols,
@@ -104,6 +104,9 @@ export async function getServerDetail(id: string) {
       transports: serverProtocols.transports,
       maxAccounts: serverProtocols.maxAccounts,
       currentAccounts: serverProtocols.currentAccounts,
+      quotaLimit: serverProtocols.quotaLimit,
+      quotaUsed: serverProtocols.quotaUsed,
+      quotaWindowStart: serverProtocols.quotaWindowStart,
       lastDetectedAt: serverProtocols.lastDetectedAt,
     })
     .from(protocols)
@@ -123,3 +126,46 @@ export async function getServerDetail(id: string) {
 }
 
 export type ServerDetail = NonNullable<Awaited<ReturnType<typeof getServerDetail>>>;
+
+export interface HealthBucket {
+  /** Start of the bucket (ISO). */
+  start: string;
+  checks: number;
+  failures: number;
+  /** Average round-trip time of the successful checks, ms. */
+  avgLatencyMs: number | null;
+  maxLatencyMs: number | null;
+}
+
+/**
+ * Health checks of the last `hours`, aggregated into `buckets` equal slices for the server
+ * sparkline (Admin → Servers → <server>). Empty slices are returned with zero checks.
+ */
+export async function getHealthTimeline(serverId: string, hours = 24, buckets = 48): Promise<HealthBucket[]> {
+  const bucketMs = Math.floor((hours * 3_600_000) / buckets);
+  const sinceMs = Date.now() - bucketMs * buckets;
+  // Both numbers are computed here (never user input), so they are inlined as literals.
+  const index = sql<number>`floor((extract(epoch from ${serverHealth.checkedAt}) * 1000 - ${sql.raw(String(sinceMs))}) / ${sql.raw(String(bucketMs))})::int`;
+  const rows = await db()
+    .select({
+      index,
+      checks: sql<number>`count(*)::int`,
+      failures: sql<number>`count(*) filter (where not ${serverHealth.reachable})::int`,
+      avgLatencyMs: sql<number | null>`round(avg(${serverHealth.latencyMs}) filter (where ${serverHealth.reachable}))::int`,
+      maxLatencyMs: sql<number | null>`max(${serverHealth.latencyMs}) filter (where ${serverHealth.reachable})`,
+    })
+    .from(serverHealth)
+    .where(and(eq(serverHealth.serverId, serverId), gte(serverHealth.checkedAt, new Date(sinceMs))))
+    .groupBy(sql`1`);
+  const byIndex = new Map(rows.map((r) => [r.index, r]));
+  return Array.from({ length: buckets }, (_, i) => {
+    const r = byIndex.get(i);
+    return {
+      start: new Date(sinceMs + i * bucketMs).toISOString(),
+      checks: r?.checks ?? 0,
+      failures: r?.failures ?? 0,
+      avgLatencyMs: r?.avgLatencyMs ?? null,
+      maxLatencyMs: r?.maxLatencyMs ?? null,
+    };
+  });
+}
