@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/admin/page-header";
 import { CompatibilityBadge } from "@/components/admin/status-badge";
 import { requirePermission } from "@/server/auth/guards";
+import { matchProtocols } from "@/server/protocols/identifiers";
 import { getServerDetail } from "@/server/servers/queries";
 import { getSiteSettings } from "@/server/settings/service";
 import { saveServerProtocolsAction } from "../../actions";
@@ -47,6 +48,12 @@ export default async function ServerSetupPage({ params }: { params: Promise<{ id
   const enabledCount = detected.filter((r) => r.enabled).length;
   const save = saveServerProtocolsAction.bind(null, server.id);
   const canPublish = connected && server.compatibility !== "unsupported" && enabledCount > 0;
+  // `unmappedProtocols` was stored at the last sync; a protocol added or edited since may now claim some of them.
+  const { matches, unmapped } = matchProtocols(
+    server.unmappedProtocols,
+    detail.protocols.map((p) => ({ id: p.protocolId, slug: p.slug, name: p.name, nodeIdentifiers: p.nodeIdentifiers })),
+  );
+  const mappedSinceSync = [...matches.values()].map((m) => m.protocol.name);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -108,9 +115,15 @@ export default async function ServerSetupPage({ params }: { params: Promise<{ id
               ? `The server reports ${detected.length} supported protocol${detected.length === 1 ? "" : "s"}. Turn off any you don't want to offer yet. Protocols that aren't installed can't be enabled.`
               : "No supported protocols detected yet."}
           </p>
-          {server.unmappedProtocols.length ? (
+          {mappedSinceSync.length ? (
             <p className="mb-4 text-sm text-muted-foreground">
-              Unrecognised identifiers reported by the server: <span className="font-mono">{server.unmappedProtocols.join(", ")}</span>.{" "}
+              <span className="font-medium text-foreground">{mappedSinceSync.join(", ")}</span> can now be detected on this server. Re-detect
+              protocols to add it.
+            </p>
+          ) : null}
+          {unmapped.length ? (
+            <p className="mb-4 text-sm text-muted-foreground">
+              Unrecognised identifiers reported by the server: <span className="font-mono">{unmapped.join(", ")}</span>.{" "}
               <Link href="/admin/protocols" className="underline underline-offset-4">
                 Map them to a protocol
               </Link>{" "}

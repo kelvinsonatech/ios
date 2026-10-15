@@ -31,6 +31,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: `${p.description} Create a free ${p.name} account valid for ${formatDays(p.durationOptions)} on servers${where}. Live status and free slots for every server.`.slice(0, 300),
     path: p.href,
     siteName: settings.siteName,
+    // Enabled but no server offers it yet: the empty state stays reachable, out of search results.
+    noIndex: data.countries.length === 0,
   });
 }
 

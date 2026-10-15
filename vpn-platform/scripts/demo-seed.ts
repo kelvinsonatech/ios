@@ -6,7 +6,9 @@
  *
  * What it does, through the same services the admin panel uses:
  *  - demo site settings (announcement on, quota resets 00:00/12:00 Asia/Bangkok, default quota 50);
- *  - soft-deletes leftover local test servers (non-demo servers on loopback addresses);
+ *  - soft-deletes leftover local test servers, but only servers on a loopback address (127.x / ::1)
+ *    whose API port is one of the demo ports (8450–8460); every other server is never touched. A
+ *    demo server whose name or URL name is taken by a server it did not create is skipped instead;
  *  - creates/updates the servers of scripts/demo-fleet.ts, connects + syncs them, enables every
  *    detected protocol (quota 50, ZIVPN without quota), publishes them; one ends up in maintenance
  *    and one offline (moved to a closed port);
@@ -147,21 +149,29 @@ async function applySettings() {
   log("Site settings: announcement on, quota resets 00:00 and 12:00 Asia/Bangkok, default quota 50.");
 }
 
-/** Leftover local test servers (e.g. from manual testing) would clash with the demo names and slugs. */
+/**
+ * Leftover local test servers that point at a demo mock-node port on a loopback address (e.g. from
+ * manual testing against `npm run demo:nodes`). Only those are removed: a server on any other
+ * address or port is never touched, even when its name or URL name clashes with a demo server
+ * (setupServer() then skips that demo server).
+ */
 async function removeLocalLeftovers() {
+  const ports = new Set([...DEMO_FLEET.map((n) => n.port), DEMO_CLOSED_PORT]);
   const rows = await db().select().from(servers).where(isNull(servers.deletedAt));
   for (const s of rows) {
-    if (s.notes === DEMO_MARKER || !isLoopback(s.ipAddress)) continue;
+    if (s.notes === DEMO_MARKER || !isLoopback(s.ipAddress) || !ports.has(s.apiPort)) continue;
     await deleteServer(s.id, s.name, actor);
-    log(`Removed leftover local test server "${s.name}" (/${s.slug}, port ${s.apiPort}).`);
+    log(`Removed leftover local test server "${s.name}" (/${s.slug}, ${s.ipAddress}:${s.apiPort}).`);
   }
 }
 
+/** The live server with the demo host's name, or else the one holding its URL name. */
 async function findServer(h: DemoHost): Promise<Server | null> {
   const [s] = await db()
     .select()
     .from(servers)
-    .where(and(isNull(servers.deletedAt), sql`lower(${servers.name}) = ${h.name.toLowerCase()}`))
+    .where(and(isNull(servers.deletedAt), sql`(lower(${servers.name}) = ${h.name.toLowerCase()} or ${servers.slug} = ${h.slug})`))
+    .orderBy(sql`lower(${servers.name}) = ${h.name.toLowerCase()} desc`)
     .limit(1);
   return s ?? null;
 }
@@ -194,7 +204,7 @@ async function setupServer(node: DemoNode, h: DemoHost): Promise<Server | null> 
   const state = h.state ?? "online";
   let server = await findServer(h);
   if (server && server.notes !== DEMO_MARKER) {
-    log(`! Skipping ${h.name}: a server with this name exists and was not created by demo:seed.`);
+    log(`! Skipping ${h.name} (/${h.slug}): "${server.name}" (/${server.slug}) uses this name or URL name and was not created by demo:seed.`);
     return null;
   }
 

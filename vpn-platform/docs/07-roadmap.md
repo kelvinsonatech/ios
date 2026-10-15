@@ -1,6 +1,6 @@
 # 7. Implementation roadmap
 
-Status as of this delivery. ✅ done · ⏸ waiting for your server script · ⬜ not started.
+Status as of this delivery. ✅ done · 🟡 partly done · ⬜ not started.
 
 | Phase | Scope | Status | Where |
 | --- | --- | --- | --- |
@@ -13,17 +13,16 @@ Status as of this delivery. ✅ done · ⏸ waiting for your server script · �
 | 7 | Capability detection | ✅ | Identifier mapping, auto-enable on drafts, "Available" on published servers, removal handling, unmapped identifiers, warnings |
 | 8 | Protocol management | ✅ | Global toggles, editor for display/slug/icon/identifiers/durations/limits, dynamic input fields, output fields, live preview, new protocols (generic adapter) |
 | 9 | Provisioning interface / adapters | ✅ | NodeDriver interface + `contract-v1` driver, 13 protocol adapters, ProvisioningService lifecycle (idempotency, capacity, uncertain-outcome reconciliation), BullMQ worker + sweeper, mock node |
-| **—** | **STOP: provide the existing server script / API** | ⏸ | See [08-server-script-intake.md](08-server-script-intake.md) |
-| 10 | Analyse your script | ⏸ | Inputs, commands, outputs, files, expiry, restarts |
-| 11 | Implement the real server adapter | ⏸ | Agent implementing the contract **or** a driver for the script's API; align adapter `config` parsing and protocol identifiers |
-| 12 | Test account creation on one controlled server | ⏸ | Add an "admin test provisioning" action; run every protocol once |
-| 13 | Account management | ⬜ (list ✅) | Revoke / renew / delete actions, safe config view; service functions exist (`revokeAccount`) |
-| 14 | Public protocol pages | ⬜ (home ✅) | `/[protocol]` pages from `listPublicProtocols()` / `getPublicProtocolServers()`; Server Status, Tools, About, Contact, Privacy, Terms, AUP |
-| 15 | Public server listings from DB | ⬜ (API ✅) | `/api/public/*` already implements auto-publishing |
-| 16 | CREATE ACCOUNT → provisioning | ⬜ (service ✅) | Route handler calling `requestAccount()`, polling `getRequestStatus()`; captcha hook |
-| 17 | Config / QR / download output | ⬜ | Render `PresentedAccount` fields, artifacts (copy, QR via `qrcode`, file download) |
-| 18 | Health monitoring | ⬜ (checks ✅) | Scheduled `testConnection()` for every server in the worker, failure threshold before OFFLINE, retention |
-| 19 | Expiry synchronisation | ⬜ | ACTIVE → EXPIRED by `expires_at`; reconcile with node (`listAccounts`) or send revoke, depending on script behaviour |
+| 10 | Analyse your script | ✅ | The owner's node API (built from [10-script-api-prompt.md](10-script-api-prompt.md)) implements the contract; protocol ids `ssh`, `ssh-ssl`, `slowdns`, `vmess`, `vless`, `trojan`, `hysteria`, `hysteria2`, `zivpn`; `capabilities.expiry_managed_by_node=false` |
+| 11 | Implement the real server adapter | ✅ | `contract-v1` driver talks to the owner's node API directly; adapters parse the config keys of section 8 of the prompt |
+| 12 | Test account creation on one controlled server | 🟡 | SSH, SSH SSL and SlowDNS pass all checks on the owner's server (`npm run node:check` + on-VPS self-test); the other protocols still need a run against a real node |
+| 13 | Account management | ✅ | Admin accounts list with DiceBear avatars, filters, detail dialog and revoke (`revokeAccount`); renew/delete are not exposed |
+| 14 | Public protocol pages | ✅ | `/`, `/<protocol>`, `/<protocol>/<country>`, `/<protocol>/<country>/<server>` from `src/server/public/catalog.ts` (`listProtocolSummaries`, `getProtocolPage`, `getCountryPage`, `getServerPage`, `getStatusPage`); `/server-status`, `/report`, `/my-accounts`, About, Contact, Privacy, Terms, AUP, sitemap/robots |
+| 15 | Public server listings from DB | ✅ | Auto-publishing query; "N slots left" from per-protocol creation quotas (reset at fixed local times) and active-account caps |
+| 16 | CREATE ACCOUNT → provisioning | ✅ | `POST /api/public/accounts` (same-origin, JSON, zod, rate limits, optional Turnstile failing closed) → `requestAccount()` → worker; polling `GET /api/public/accounts/<id>` with the claim token |
+| 17 | Config / QR / download output | ✅ | One-time result with DiceBear avatar, copy buttons, QR codes, file downloads, `.txt` export |
+| 18 | Health monitoring | ✅ | Worker health tick (30 s) per server: online/offline with a failure threshold, latency, 7-day history, admin sparkline |
+| 19 | Expiry synchronisation | ✅ | Worker expiry job: ACTIVE → EXPIRED by `expires_at`, then a revoke is sent to the node (nodes report `expiry_managed_by_node=false`) |
 | 20 | Security testing | ⬜ | Dependency audit, DAST on admin, node agent review, load test of provisioning |
 | 21 | Production deployment | ⬜ (Docker ✅) | Dockerfile + compose + Caddy are ready; secrets, backups, monitoring, firewall rules |
 

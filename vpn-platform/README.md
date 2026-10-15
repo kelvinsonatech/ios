@@ -2,7 +2,7 @@
 
 A website + admin panel that turns servers prepared with **your existing installation script** into publicly available SSH / V2Ray / WireGuard / OpenVPN / … account generators — with no code change per server.
 
-> **Status:** PRD phases 1–9 are implemented and tested (database, admin auth, dashboard, server management, Add Server workflow, connection test, capability detection, protocol management, provisioning interface/adapters/lifecycle). **Real provisioning is paused until the server script is analysed** — see [docs/08-server-script-intake.md](docs/08-server-script-intake.md). The brand name is a placeholder (`NEXT_PUBLIC_SITE_NAME`).
+> **Status:** the admin panel, the public site (protocol → country → server → create account, server status, reports, my accounts, legal pages) and the provisioning pipeline are implemented and tested against the owner's node API (see [docs/10-script-api-prompt.md](docs/10-script-api-prompt.md); SSH, SSH SSL and SlowDNS verified on the owner's server; `npm run node:check` checks a real node end to end). Every VPN account and admin gets a locally generated DiceBear avatar. Roadmap: [docs/07-roadmap.md](docs/07-roadmap.md). The brand name comes from the admin site settings (default "Vaultline").
 
 Design documents: [docs/](docs/README.md).
 
@@ -47,7 +47,7 @@ npm run dev                     # http://localhost:3000 and /admin
 ADMIN_PASSWORD='choose-a-long-password' npm run admin:create -- --email admin@example.com --name Admin --role super_admin
 ```
 
-`demo:seed` goes through the same services as the admin panel: demo site settings (announcement on, quota resets at 00:00 and 12:00 Asia/Bangkok, default quota 50), connect + sync + publish every demo server and enable its detected protocols (quota 50, ZIVPN without quota), simulated quota usage for the current window (Singapore 01 SSH is full, Germany 01 VLESS has one slot left), eight accounts created on the mock nodes (one revoked) and two problem reports. *Germany 02* is in maintenance, *USA 02* points at a closed port and shows offline, and *France 01* reports Hysteria as stopped. Leftover non-demo servers on loopback addresses (earlier manual tests) are soft-deleted so names and URLs stay clean. `MOCK_NODE_SECRET` (16+ characters) overrides the demo nodes' shared development secret; set it for both commands.
+`demo:seed` goes through the same services as the admin panel: demo site settings (announcement on, quota resets at 00:00 and 12:00 Asia/Bangkok, default quota 50), connect + sync + publish every demo server and enable its detected protocols (quota 50, ZIVPN without quota), simulated quota usage for the current window (Singapore 01 SSH is full, Germany 01 VLESS has one slot left), eight accounts created on the mock nodes (one revoked) and two problem reports. *Germany 02* is in maintenance, *USA 02* points at a closed port and shows offline, and *France 01* reports Hysteria as stopped. The only servers it ever removes (soft-delete) are leftover non-demo servers on a loopback address (`127.x`, `::1`) whose API port is a demo port (8450–8460), e.g. earlier manual tests against the demo nodes; every other server is left untouched, and a demo server whose name or URL name is already used by a server the seed did not create is skipped with a message. `MOCK_NODE_SECRET` (16+ characters) overrides the demo nodes' shared development secret; set it for both commands.
 
 ## Scripts
 

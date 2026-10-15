@@ -61,7 +61,7 @@ The same logic exists in TypeScript (`computeServerStatus`) and is unit-tested.
 
 ## Auto-publishing query
 
-A server is listed on `/<protocol>` when **all** hold (see `src/server/protocols/catalog.ts`):
+A server is listed on `/<protocol>` when **all** hold (see `src/server/public/catalog.ts`):
 
 ```sql
 protocols.enabled
