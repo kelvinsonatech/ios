@@ -179,7 +179,7 @@ export function ProtocolSettingsForm({
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Max active</span> caps live accounts on this server.{" "}
           <span className="font-medium text-foreground">Creation quota</span> limits new accounts per reset period
-          {resetLabel ? ` (current period ${resetLabel})` : ""}; visitors see the lower of the two as “slots left”. Blank = no limit.
+          {resetLabel ? `; the current period ${resetLabel}` : ""}. Visitors see the lower of the two as “slots left”. Blank = no limit.
         </p>
         {canEdit ? (
           <Button type="submit" variant="outline" disabled={pending} className="shrink-0">

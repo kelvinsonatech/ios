@@ -29,10 +29,12 @@ export function ServerCard({
   server: s,
   protocol,
   className,
+  style,
 }: {
   server: PublicServerCard;
   protocol: { name: string; icon: string; durationOptions: number[] };
   className?: string;
+  style?: React.CSSProperties;
 }) {
   const available = s.availability === "available";
   const blocked = s.availability === "available" ? null : UNAVAILABLE[s.availability];
@@ -40,6 +42,7 @@ export function ServerCard({
 
   return (
     <article
+      style={style}
       className={cn(
         "group relative flex flex-col overflow-hidden rounded-3xl border bg-card shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/10 motion-reduce:hover:translate-y-0",
         available ? "hover:border-primary/30" : "opacity-95",

@@ -125,23 +125,23 @@ export function HealthSparkline({ slices, className }: { slices: HealthSlice[]; 
           <span key={s.start} title={describe(s, i)} className={cn("flex-1 rounded-[2px]", STATE_CLASS[sliceState(s)])} />
         ))}
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+      <div className="flex justify-between text-[11px] text-muted-foreground">
         <span>24 h ago</span>
-        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span className="flex items-center gap-1">
-            <span className="size-2 rounded-[2px] bg-success/70" /> Reachable
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="size-2 rounded-[2px] bg-warning" /> Some checks failed
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="size-2 rounded-[2px] bg-destructive" /> Unreachable
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="size-2 rounded-[2px] bg-muted ring-1 ring-border" /> No data
-          </span>
-        </span>
         <span>now</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+        <span className="flex items-center gap-1">
+          <span className="size-2 rounded-[2px] bg-success/70" /> Reachable
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="size-2 rounded-[2px] bg-warning" /> Some checks failed
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="size-2 rounded-[2px] bg-destructive" /> Unreachable
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="size-2 rounded-[2px] bg-muted ring-1 ring-border" /> No data
+        </span>
       </div>
     </figure>
   );
