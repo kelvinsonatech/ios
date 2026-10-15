@@ -10,7 +10,9 @@ import { loadProtocols, loadSettings, loadStats, resetSchedule } from "./_lib/da
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await loadSettings();
   return {
-    title: { default: `${settings.siteName} · ${settings.tagline || "Private tunnels"}`, template: `%s · ${settings.siteName}` },
+    // `absolute`, not `default`: a default would get the root layout's "%s · Site" template too, and
+    // pages without their own title (the 404 page) would read "Site · Tagline · Site".
+    title: { absolute: `${settings.siteName} · ${settings.tagline || "Private tunnels"}`, template: `%s · ${settings.siteName}` },
     description: settings.seoDescription,
     applicationName: settings.siteName,
     openGraph: { siteName: settings.siteName, type: "website", locale: "en_US" },

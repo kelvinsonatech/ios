@@ -119,18 +119,20 @@ export function useAccountCreation(options: CreationOptions) {
     abortRef.current = null;
   }, []);
 
+  /** `firstDelay` 0 asks right away (a recovered or re-checked request is usually ready already). */
   const poll = useCallback(
-    async (pending: PendingCreation, key: string) => {
+    async (pending: PendingCreation, key: string, firstDelay = POLL_START_MS) => {
       stop();
       const run = runRef.current;
       const ac = new AbortController();
       abortRef.current = ac;
       const started = Date.now();
       let delay = POLL_START_MS;
+      let wait = firstDelay;
       let failures = 0;
 
       while (run === runRef.current) {
-        if (!(await sleep(delay, ac.signal))) return;
+        if (!(await sleep(wait, ac.signal))) return;
         try {
           const { data } = await requestJson<AccountStatusResponse>(`/api/public/accounts/${encodeURIComponent(pending.requestId)}`, {
             headers: { "x-claim-token": pending.claimToken },
@@ -180,6 +182,7 @@ export function useAccountCreation(options: CreationOptions) {
           setState({ phase: "timeout", requestId: pending.requestId });
           return;
         }
+        wait = delay;
         delay = Math.min(POLL_MAX_MS, Math.round(delay * 1.4));
       }
     },
@@ -193,7 +196,7 @@ export function useAccountCreation(options: CreationOptions) {
     if (saved) {
       t = setTimeout(() => {
         setState({ phase: "pending", requestId: saved.requestId, step: "creating", connectionIssue: false });
-        void poll(saved, storageKey);
+        void poll(saved, storageKey, 0);
       }, 0);
     }
     return () => {
@@ -264,7 +267,7 @@ export function useAccountCreation(options: CreationOptions) {
       return;
     }
     setState({ phase: "pending", requestId: saved.requestId, step: "creating", connectionIssue: false });
-    void poll(saved, storageKey);
+    void poll(saved, storageKey, 0);
   }, [poll, storageKey]);
 
   /** Back to the (still filled) form after a failure. */
