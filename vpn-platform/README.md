@@ -70,13 +70,16 @@ ADMIN_PASSWORD='choose-a-long-password' npm run admin:create -- --email admin@ex
 
 ## Deployment
 
+Step-by-step guide for a VPS (domain, HTTPS, admin login, VPN servers, Cloudflare, backups):
+[docs/11-deployment.md](docs/11-deployment.md). In short:
+
 ```bash
 cp .env.example .env   # set secrets, POSTGRES_PASSWORD, SITE_DOMAIN, APP_URL=https://SITE_DOMAIN
 docker compose up -d --build
 docker compose run --rm migrate node dist/scripts/create-admin.mjs --email you@example.com --role super_admin
 ```
 
-One image runs three roles: `web` (Next.js standalone), `worker`, `migrate` (migrations + seed). Caddy terminates TLS (automatic certificates) and sets `X-Forwarded-For` (`TRUSTED_PROXY_HOPS=1`). Never expose the web container directly. Firewall each VPN server's API port to the website's IP.
+One image runs three roles: `web` (Next.js standalone), `worker`, `migrate` (migrations + seed). Caddy terminates TLS (automatic certificates) and sets `X-Forwarded-For` (`TRUSTED_PROXY_HOPS=1`; behind Cloudflare use `deploy/Caddyfile.cloudflare` and `TRUSTED_PROXY_HOPS=2`). Never expose the web container directly. Firewall each VPN server's API port to the website's IP.
 
 ## Project layout
 

@@ -14,3 +14,4 @@ Answers to PRD §50 ("first produce …") plus the public site and the node API 
 | 8 | [Request: your server script](08-server-script-intake.md) | §43 — the STOP point before real provisioning (done: the owner's node API exists) |
 | 9 | [Public site, quotas, monitoring & avatars](09-public-site.md) | Public pages and API, account creation → one-time result, creation quotas, health monitor, expiry, DiceBear avatars, captcha, site settings, reports |
 | 10 | [Prompt: add a web API to your VPN script](10-script-api-prompt.md) | Copy-paste instructions for the AI tool that built your script: endpoints, signing, JSON formats, tests; section 12 explains the two checkers (`scripts/node-selftest.py` on the VPS, `npm run node:check` from the website side) |
+| 11 | [Deploying the website on a VPS](11-deployment.md) | Step-by-step: VPS, Docker, domain (Hostinger), HTTPS, admin login, adding VPN servers, Cloudflare, updates, backups |

@@ -9,7 +9,8 @@ x-app: &app
   environment:
     DATABASE_URL: postgres://vaultline:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/vaultline
     REDIS_URL: redis://redis:6379
-    TRUSTED_PROXY_HOPS: "1"
+    # 1 = Caddy only; 2 when Cloudflare proxies the domain (see deploy/Caddyfile.cloudflare).
+    TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
   restart: unless-stopped
   depends_on:
     postgres: { condition: service_healthy }
@@ -64,7 +65,8 @@ services:
     environment:
       SITE_DOMAIN: ${SITE_DOMAIN:-localhost}
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # ./deploy/Caddyfile.cloudflare when the domain is proxied by Cloudflare (orange cloud).
+      - ${CADDYFILE:-./deploy/Caddyfile}:/etc/caddy/Caddyfile:ro
       - caddydata:/data
     depends_on: [web]
     restart: unless-stopped
