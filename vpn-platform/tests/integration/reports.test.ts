@@ -5,7 +5,7 @@ import { admins, auditLogs, serverReports } from "@/server/db/schema";
 import { redis } from "@/server/redis";
 import { publishServer } from "@/server/servers/service";
 import { syncServer } from "@/server/servers/sync";
-import { countOpenReports, createReport, listReports, ReportError, REPORTS_PAGE_SIZE, setReportStatus } from "@/server/reports/service";
+import { countOpenReports, createReport, deleteReport, listReports, purgeResolvedReports, ReportError, REPORTS_PAGE_SIZE, setReportStatus } from "@/server/reports/service";
 import { actor, createServer, resetDatabase, startNode, teardown } from "../helpers";
 
 let ipCounter = 0;
@@ -119,5 +119,27 @@ describe("problem reports", () => {
     const [row] = await db().select().from(serverReports).where(eq(serverReports.id, target));
     expect(row).toMatchObject({ status: "open", resolvedBy: null, resolvedAt: null, adminNote: null });
     await expect(setReportStatus("00000000-0000-4000-8000-000000000000", "resolved", null, actor)).rejects.toThrow(/not found/);
+  });
+
+  it("deletes a report on request and purges resolved reports after the retention period", async () => {
+    await db().delete(serverReports);
+    const [a, b, c] = await db()
+      .insert(serverReports)
+      .values([
+        { serverId, category: "slow", message: "Old resolved report", contactEmail: "user@example.com", status: "resolved", resolvedAt: new Date(Date.now() - 91 * 86_400_000) },
+        { serverId, category: "slow", message: "Recently resolved report", status: "resolved", resolvedAt: new Date(Date.now() - 5 * 86_400_000) },
+        { serverId, category: "other", message: "Still open report" },
+      ])
+      .returning({ id: serverReports.id });
+    expect(await purgeResolvedReports()).toBe(1);
+    const left = (await db().select({ id: serverReports.id }).from(serverReports)).map((r) => r.id).sort();
+    expect(left).toEqual([b!.id, c!.id].sort());
+    expect(left).not.toContain(a!.id);
+
+    await deleteReport(c!.id, { ...actor, adminId });
+    expect(await db().select().from(serverReports).where(eq(serverReports.id, c!.id))).toHaveLength(0);
+    const audits = await db().select().from(auditLogs).where(eq(auditLogs.action, "report.delete"));
+    expect(audits.at(-1)).toMatchObject({ targetId: c!.id, adminId });
+    await expect(deleteReport(c!.id, actor)).rejects.toThrow(/no longer exists/);
   });
 });

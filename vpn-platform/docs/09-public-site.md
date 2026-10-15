@@ -61,7 +61,7 @@ flowchart LR
 
 `src/server/public/catalog.ts` runs **one query** for every listed (server, protocol) pair and derives every page from that snapshot. A server is listed for a protocol when the protocol is enabled, the server/protocol row is enabled **and** detected, and the server is published (lifecycle `active` or `maintenance`, not deleted, compatibility not `unsupported`). Browse pages show servers whose status is online, full or maintenance; the status page also shows offline ones, and a server page stays reachable while its server is offline (it explains why). Results are cached per process (snapshot and status 5 s, pages 10 s).
 
-The query never selects the server's IP address, management API port or credentials. The VPN hostname is included only when **Show server hostnames** is on (Admin → Site settings → Public display; default on, because users receive it with their account anyway).
+The query never selects the server's IP address, management API port or credentials. The VPN hostname is included only when **Show server hostnames** is on (Admin → Site settings → Public display; default off, because the hostname is also the management API's address; users still receive it with their account).
 
 **Availability** of a server for one protocol, in priority order: `maintenance` → `offline` (also an unsupported script) → `service_stopped` (the node reports the protocol's service as stopped) → `full` (server status full, or 0 slots left) → `available`.
 

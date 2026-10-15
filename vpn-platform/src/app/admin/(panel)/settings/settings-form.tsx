@@ -577,7 +577,7 @@ export function SettingsForm({
               title="Show server hostnames"
               checked={draft.display.showHostnames}
               onChange={(v) => patch((d) => ({ ...d, display: { ...d.display, showHostnames: v } }))}
-              description="Each server card and the status page show the VPN hostname users connect to (they receive it with their account anyway). The server's IP address, management API port and credentials are never shown."
+              description="Each server card and the status page show the VPN hostname users connect to (they receive it with their account anyway). It is also the address of the server's management API, so listing it lets anyone list your whole fleet; keep that API firewalled to this website. The IP address, API port and credentials are never shown."
               example={draft.display.showHostnames ? "de1.example.net" : "Hidden"}
             />
             <ToggleRow

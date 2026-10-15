@@ -1,3 +1,5 @@
+import { rateLimit, type RateLimitResult } from "@/server/auth/rate-limit";
+import { hashClientIp } from "@/server/crypto/hashing";
 import { env, isProduction } from "@/server/env";
 import { errorSummary, logger } from "@/server/logging/logger";
 
@@ -11,6 +13,10 @@ import { errorSummary, logger } from "@/server/logging/logger";
  *
  * The secret key never leaves the server and is never logged. Cloudflare receives the client IP
  * (`remoteip`) as part of the verification; nothing else about the user is sent.
+ *
+ * Each widget sends an action name ("create-account", "report"); a token solved for one form is not
+ * accepted by the other. Failed checks are throttled per client network before Cloudflare is asked
+ * (captchaPreLimit), so junk tokens cannot keep outbound verification requests busy.
  */
 
 export const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
@@ -29,8 +35,20 @@ export function captchaSiteKey(): string | null {
   return captchaEnabled() ? (env().TURNSTILE_SITE_KEY ?? null) : null;
 }
 
-/** True when the token proves a human solved the challenge (or captcha is disabled). */
-export async function verifyCaptcha(token: string | null | undefined, clientIp: string | null): Promise<boolean> {
+/** Attempts per minute and client network that may reach Turnstile verification. */
+const VERIFY_PER_MINUTE = 20;
+
+/** Throttle captcha checks per client network; always allowed when captcha is disabled. */
+export async function captchaPreLimit(clientIp: string | null): Promise<RateLimitResult> {
+  if (!captchaEnabled()) return { allowed: true, remaining: VERIFY_PER_MINUTE, resetSeconds: 60 };
+  return rateLimit(`captcha:${hashClientIp(clientIp) ?? "unknown"}`, VERIFY_PER_MINUTE, 60, "closed");
+}
+
+/**
+ * True when the token proves a human solved the challenge for `expectedAction` (or captcha is
+ * disabled). A network error (for example a reused idle connection that was closed) is retried once.
+ */
+export async function verifyCaptcha(token: string | null | undefined, clientIp: string | null, expectedAction?: string): Promise<boolean> {
   const config = env();
   if (config.CAPTCHA_PROVIDER === "none") {
     if (isProduction() && !g.__vlCaptchaWarned) {
@@ -46,21 +64,24 @@ export async function verifyCaptcha(token: string | null | undefined, clientIp: 
 
   const body = new URLSearchParams({ secret, response: token });
   if (clientIp) body.set("remoteip", clientIp);
+  const deadline = Date.now() + VERIFY_TIMEOUT_MS;
   try {
-    const res = await fetch(TURNSTILE_VERIFY_URL, {
-      method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body,
-      redirect: "error",
-      cache: "no-store",
-      signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS),
-    });
+    let res: Response;
+    try {
+      res = await siteverify(body, deadline);
+    } catch (e) {
+      // Only errors before any answer are retried (a timeout is not: the deadline is shared).
+      if (!(e instanceof TypeError) || Date.now() >= deadline) throw e;
+      res = await siteverify(body, deadline);
+    }
     if (!res.ok) {
       logger.warn("captcha verification unavailable", { status: res.status });
       return false;
     }
-    const data = (await res.json()) as { success?: unknown; "error-codes"?: unknown };
-    if (data?.success === true) return true;
+    const data = (await res.json()) as { success?: unknown; action?: unknown; "error-codes"?: unknown };
+    if (data?.success === true) {
+      return !expectedAction || typeof data.action !== "string" || data.action === expectedAction;
+    }
     const codes = Array.isArray(data?.["error-codes"]) ? data["error-codes"].filter((c) => typeof c === "string").slice(0, 5) : [];
     // Configuration problems (wrong secret) deserve an operator's attention; user failures do not.
     if (codes.some((c) => c === "missing-input-secret" || c === "invalid-input-secret")) {
@@ -71,4 +92,15 @@ export async function verifyCaptcha(token: string | null | undefined, clientIp: 
     logger.warn("captcha verification failed", errorSummary(e));
     return false;
   }
+}
+
+function siteverify(body: URLSearchParams, deadline: number): Promise<Response> {
+  return fetch(TURNSTILE_VERIFY_URL, {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body,
+    redirect: "error",
+    cache: "no-store",
+    signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+  });
 }

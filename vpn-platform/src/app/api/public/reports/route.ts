@@ -1,5 +1,5 @@
 import { clientIpFromHeaders } from "@/server/auth/request-context";
-import { verifyCaptcha } from "@/server/captcha";
+import { captchaPreLimit, verifyCaptcha } from "@/server/captcha";
 import { errorSummary, logger } from "@/server/logging/logger";
 import { apiError, noStoreJson, rateLimited, readPublicJson } from "@/server/public/http";
 import { createReport, ReportError } from "@/server/reports/service";
@@ -14,8 +14,10 @@ export async function POST(req: Request) {
   const read = await readPublicJson(req, MAX_BODY_BYTES);
   if (!read.ok) return read.response;
   const clientIp = clientIpFromHeaders(req.headers);
+  const pre = await captchaPreLimit(clientIp);
+  if (!pre.allowed) return rateLimited("Too many attempts. Please wait a minute and try again.", pre.resetSeconds);
   const token = (read.body as { captchaToken?: unknown }).captchaToken;
-  if (!(await verifyCaptcha(typeof token === "string" ? token : null, clientIp))) {
+  if (!(await verifyCaptcha(typeof token === "string" ? token : null, clientIp, "report"))) {
     return apiError(403, "CAPTCHA_FAILED", "Please complete the human check and try again.");
   }
   try {

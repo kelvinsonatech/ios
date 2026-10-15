@@ -207,7 +207,26 @@ export async function setReportStatus(id: string, status: ReportStatus, adminNot
   });
 }
 
+/** Permanently delete a report (for example when the reporter asks for their message to be erased). */
+export async function deleteReport(id: string, actor: AuditActor): Promise<void> {
+  const [row] = await db().delete(serverReports).where(eq(serverReports.id, id)).returning({ id: serverReports.id, status: serverReports.status });
+  if (!row) throw new UserFacingError("This report no longer exists.");
+  await audit(actor, "report.delete", { targetType: "report", targetId: id, details: { status: row.status } });
+}
+
 export async function countOpenReports(): Promise<number> {
   const [row] = await db().select({ count: sql<number>`count(*)::int` }).from(serverReports).where(eq(serverReports.status, "open"));
   return row?.count ?? 0;
+}
+
+/** Resolved reports (and any email address in them) are deleted this long after resolution. */
+export const RESOLVED_REPORT_RETENTION_DAYS = 90;
+
+/** Delete resolved reports older than the retention period (hourly maintenance job). */
+export async function purgeResolvedReports(days = RESOLVED_REPORT_RETENTION_DAYS): Promise<number> {
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+  const res = await db().execute(
+    sql`delete from ${serverReports} where ${serverReports.status} = 'resolved' and ${serverReports.resolvedAt} < ${cutoff}::timestamptz`,
+  );
+  return res.count ?? 0;
 }

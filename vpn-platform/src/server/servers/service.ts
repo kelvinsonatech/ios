@@ -19,6 +19,7 @@ import { closeAllNodeAgents } from "@/server/nodes/transport";
 import { refreshServerStatus } from "./status";
 import type { ConnectionInput, ServerDetailsInput } from "./validation";
 
+import { clearPublicCache } from "@/server/public/cache";
 async function requireServer(id: string): Promise<Server> {
   const [s] = await db().select().from(servers).where(and(eq(servers.id, id), isNull(servers.deletedAt))).limit(1);
   if (!s) throw new UserFacingError("Server not found.", "NOT_FOUND");
@@ -198,6 +199,7 @@ export async function updateServerDetails(id: string, details: ServerDetailsInpu
   const changed = Object.keys(after).filter((k) => String((before as Record<string, unknown>)[k] ?? "") !== String(after[k] ?? ""));
   await logEvent({ event: "server.updated", status: "success", serverId: id, adminId: actor.adminId, message: `Server ${updated.name} updated.`, details: { changed } });
   await audit(actor, "server.update", { targetType: "server", targetId: id, details: { changed } });
+  clearPublicCache(); // admin changes show on public pages immediately
   return updated;
 }
 
@@ -267,6 +269,7 @@ export async function publishServer(id: string, actor: AuditActor): Promise<void
   });
   await logEvent({ event: "server.published", status: "success", serverId: id, adminId: actor.adminId, message: `Server ${server.name} published with ${count} protocol(s).` });
   await audit(actor, "server.publish", { targetType: "server", targetId: id });
+  clearPublicCache(); // admin changes show on public pages immediately
 }
 
 const LIFECYCLE_TRANSITIONS: Record<ServerLifecycle, ServerLifecycle[]> = {
@@ -302,6 +305,7 @@ export async function setServerLifecycle(id: string, target: ServerLifecycle, ac
     message: `Server ${server.name}: ${server.lifecycle} → ${target}.`,
   });
   await audit(actor, "server.lifecycle", { targetType: "server", targetId: id, details: { from: server.lifecycle, to: target } });
+  clearPublicCache(); // admin changes show on public pages immediately
 }
 
 /** Per-server protocol switches and capacity. Only detected protocols can be enabled. */
@@ -345,6 +349,7 @@ export async function updateServerProtocols(
     details: { changes },
   });
   await audit(actor, "server.protocols_update", { targetType: "server", targetId: id, details: { changes } });
+  clearPublicCache(); // admin changes show on public pages immediately
 }
 
 export async function countLiveAccounts(serverId: string): Promise<number> {
@@ -383,4 +388,5 @@ export async function deleteServer(id: string, confirmName: string, actor: Audit
     message: `Server ${server.name} deleted${live ? ` (${live} live account(s) remain on the node)` : ""}.`,
   });
   await audit(actor, "server.delete", { targetType: "server", targetId: id, details: { name: server.name, liveAccounts: live } });
+  clearPublicCache(); // admin changes show on public pages immediately
 }

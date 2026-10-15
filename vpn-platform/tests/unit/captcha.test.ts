@@ -88,6 +88,29 @@ describe("captcha (Cloudflare Turnstile)", () => {
     }
   });
 
+  it("retries once after a network error (for example a closed keep-alive connection)", async () => {
+    useTurnstile();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    let calls = 0;
+    const fetchMock = vi.fn(async () => {
+      calls++;
+      if (calls === 1) throw new TypeError("fetch failed");
+      return answer({ success: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await verifyCaptcha("token-123", "198.51.100.1")).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts a token only for the form it was solved on", async () => {
+    useTurnstile();
+    vi.stubGlobal("fetch", vi.fn(async () => answer({ success: true, action: "report" })));
+    expect(await verifyCaptcha("token-123", null, "create-account")).toBe(false);
+    expect(await verifyCaptcha("token-123", null, "report")).toBe(true);
+    vi.stubGlobal("fetch", vi.fn(async () => answer({ success: true })));
+    expect(await verifyCaptcha("token-123", null, "create-account")).toBe(true);
+  });
+
   it("rejects missing or oversized tokens without calling out", async () => {
     useTurnstile();
     const fetchMock = vi.fn(async () => answer({ success: true }));

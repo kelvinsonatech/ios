@@ -23,6 +23,7 @@ import { matchProtocols, normalizeIdentifier } from "@/server/protocols/identifi
 import { getSiteSettings } from "@/server/settings/service";
 import { refreshServerStatus } from "./status";
 
+import { clearPublicCache } from "@/server/public/cache";
 export interface ConnectionCheck {
   ok: boolean;
   latencyMs?: number;
@@ -311,6 +312,7 @@ export async function syncServer(serverId: string, actor?: AuditActor): Promise<
       durationMs: Date.now() - started,
     });
     if (actor) await audit(actor, "server.sync", { targetType: "server", targetId: s.id, details: { added: result.added, removed: result.removed } });
+    clearPublicCache();
 
     return {
       ok: true,

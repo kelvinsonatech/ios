@@ -5,6 +5,7 @@ import { audit, type AuditActor } from "@/server/audit";
 import { logger } from "@/server/logging/logger";
 import { DEFAULT_SITE_SETTINGS, siteSettingsSchema, type SiteSettings } from "@/lib/site-settings";
 
+import { clearPublicCache } from "@/server/public/cache";
 /**
  * Site settings are read on every public page, so they are cached per process for a few seconds.
  * Other processes (the worker, other web replicas) pick up a change within CACHE_MS.
@@ -52,6 +53,7 @@ export async function updateSiteSettings(raw: unknown, actor: AuditActor): Promi
   g.__vlSettings = { value: next, at: Date.now() };
   const changed = (Object.keys(next) as (keyof SiteSettings)[]).filter((k) => JSON.stringify(next[k]) !== JSON.stringify(before[k]));
   await audit(actor, "settings.update", { targetType: "settings", targetId: "site", details: { changed } });
+  clearPublicCache(); // admin changes show on public pages immediately
   return next;
 }
 

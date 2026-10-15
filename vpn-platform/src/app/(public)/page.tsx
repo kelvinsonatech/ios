@@ -185,7 +185,9 @@ export default async function HomePage() {
                 {[
                   { label: "Servers online", value: stats.serversOnline },
                   { label: "Countries", value: stats.countries },
-                  { label: "Accounts today", value: stats.accountsToday },
+                  settings.display.showStats
+                    ? { label: "Accounts today", value: stats.accountsToday }
+                    : { label: "Protocols", value: protocols.length },
                 ].map((s) => (
                   <div key={s.label} className="flex flex-col-reverse rounded-2xl bg-white/10 px-3 py-3 ring-1 ring-white/20 backdrop-blur-sm sm:px-4">
                     <dt className="mt-0.5 text-[11px] text-white/75 sm:text-xs">{s.label}</dt>

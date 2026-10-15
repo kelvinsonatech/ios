@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { CheckCircle2Icon, LoaderCircleIcon, RotateCcwIcon } from "lucide-react";
+import { CheckCircle2Icon, LoaderCircleIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/admin/form-field";
 import { cn } from "@/lib/utils";
-import { setReportStatusAction } from "./actions";
+import { ConfirmAction } from "@/components/admin/confirm-action";
+import { deleteReportAction, setReportStatusAction } from "./actions";
 
 const NOTE_MAX = 500;
 
@@ -120,6 +121,32 @@ export function ReportStatusButton({
           </form>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+/** Delete button with a confirmation dialog (deleting cannot be undone). */
+export function ReportDeleteButton({ id, summary, className }: { id: string; summary: string; className?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button type="button" size="icon-sm" variant="ghost" className={cn("text-muted-foreground", className)} aria-label={`Delete report: ${summary}`} onClick={() => setOpen(true)}>
+        <Trash2Icon />
+      </Button>
+      <ConfirmAction
+        open={open}
+        onOpenChange={setOpen}
+        title="Delete this report?"
+        description={
+          <>
+            <span className="font-medium text-foreground">{summary}</span> will be deleted permanently, including any email address the reporter left.
+            Resolved reports are also deleted automatically 90 days after they were resolved.
+          </>
+        }
+        confirmLabel="Delete report"
+        destructive
+        action={() => deleteReportAction(id)}
+      />
     </>
   );
 }

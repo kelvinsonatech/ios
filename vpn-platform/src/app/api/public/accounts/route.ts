@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { clientIpFromHeaders } from "@/server/auth/request-context";
-import { verifyCaptcha } from "@/server/captcha";
+import { captchaPreLimit, verifyCaptcha } from "@/server/captcha";
 import { errorSummary, logger } from "@/server/logging/logger";
 import { ProvisioningError, requestAccount } from "@/server/provisioning/service";
 import { apiError, noStoreJson, rateLimited, readPublicJson } from "@/server/public/http";
@@ -31,7 +31,9 @@ export async function POST(req: Request) {
   if (!body.success) return apiError(400, "INVALID_REQUEST", "Invalid request. Please reload the page and try again.");
 
   const clientIp = clientIpFromHeaders(req.headers);
-  if (!(await verifyCaptcha(body.data.captchaToken, clientIp))) {
+  const pre = await captchaPreLimit(clientIp);
+  if (!pre.allowed) return rateLimited("Too many attempts. Please wait a minute and try again.", pre.resetSeconds, "burst");
+  if (!(await verifyCaptcha(body.data.captchaToken, clientIp, "create-account"))) {
     return apiError(403, "CAPTCHA_FAILED", "Please complete the human check and try again.");
   }
 

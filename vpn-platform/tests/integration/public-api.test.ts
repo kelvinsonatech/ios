@@ -97,6 +97,10 @@ describe("public API route handlers", () => {
     expect((await poll(null)).status).toBe(404);
     const unknown = await accountStatus(new Request(`${ORIGIN}/api/public/accounts/x`, { headers: { "x-claim-token": created.claimToken } }), params({ requestId: "x" }));
     expect(unknown.status).toBe(404);
+    // Malformed ids of UUID length are a clean 404, not a database error.
+    const dashes = "-".repeat(36);
+    const malformed = await accountStatus(new Request(`${ORIGIN}/api/public/accounts/${dashes}`, { headers: { "x-claim-token": created.claimToken } }), params({ requestId: dashes }));
+    expect(malformed.status).toBe(404);
   });
 
   it("a retry with the same idempotency key returns the same request", async () => {

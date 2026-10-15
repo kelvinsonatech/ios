@@ -287,12 +287,13 @@ describe("public catalogue", () => {
     expect(new Set(paths).size).toBe(paths.length);
   });
 
-  it("caches results for a few seconds", async () => {
-    const before = await listProtocolSummaries();
-    await setProtocolEnabled(await protocolId("ssh-ssl"), false, actor);
-    expect(await listProtocolSummaries()).toBe(before); // same cached object
+  it("caches results for a few seconds; admin changes clear the cache at once", async () => {
     clearPublicCache();
+    const before = await listProtocolSummaries();
+    expect(await listProtocolSummaries()).toBe(before); // same cached object
+    await setProtocolEnabled(await protocolId("ssh-ssl"), false, actor);
     expect((await listProtocolSummaries()).map((p) => p.slug)).not.toContain("ssh-ssl");
     await setProtocolEnabled(await protocolId("ssh-ssl"), true, actor);
+    expect((await listProtocolSummaries()).map((p) => p.slug)).toContain("ssh-ssl");
   });
 });

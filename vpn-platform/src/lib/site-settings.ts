@@ -76,7 +76,8 @@ export const siteSettingsSchema = z.object({
   display: z.object({
     /**
      * Show each server's VPN hostname on public listings (users receive it with their account anyway).
-     * The management API port is never shown and stays firewalled to the website.
+     * Off by default: the hostname is also the address of the server's management API, so listing it
+     * makes the whole fleet easy to enumerate. The management API port is never shown.
      */
     showHostnames: z.boolean(),
     /** Footer counters with accounts created in total and today. */
@@ -90,12 +91,12 @@ export type SiteSettingsInput = z.input<typeof siteSettingsSchema>;
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   siteName: process.env.NEXT_PUBLIC_SITE_NAME || "Vaultline",
   tagline: "Private tunnels, provisioned in seconds.",
-  seoDescription: "Free SSH, V2Ray, Trojan, Shadowsocks, WireGuard and OpenVPN accounts on fast servers worldwide.",
+  seoDescription: "Free SSH, SSH SSL, SlowDNS, VMess, VLESS, Trojan, Hysteria and ZIVPN UDP accounts on fast servers worldwide.",
   announcement: { enabled: false, text: "", tone: "info", linkLabel: null, linkUrl: null },
   quota: { resetTimes: ["00:00", "12:00"], timezone: "UTC", defaultLimit: null },
   health: { intervalSeconds: 60, failureThreshold: 3 },
   avatarStyle: DEFAULT_AVATAR_STYLE,
   contact: { email: null, telegramUrl: null },
   rules: ["No torrenting or P2P", "No DDoS, hacking or carding", "One device per account"],
-  display: { showHostnames: true, showStats: true },
+  display: { showHostnames: false, showStats: true },
 };

@@ -34,6 +34,7 @@ import { enqueueProvisioning } from "./queue";
 import { formatLocalTime, quotaWindow } from "./quota";
 import type { AdapterContext, NormalizedAccountInput, PresentedAccount, ProtocolDefinition } from "./types";
 
+import { clearPublicCache } from "@/server/public/cache";
 /**
  * Provisioning lifecycle (docs/05-provisioning.md):
  *
@@ -623,7 +624,7 @@ export async function getRequestStatus(requestId: string, claimToken: string): P
 
 /** getRequestStatus plus the account id (for the account's avatar). Null for unknown ids or a wrong token. */
 export async function getRequestResult(requestId: string, claimToken: string): Promise<{ status: RequestStatus; accountId: string | null } | null> {
-  if (!/^[0-9a-f-]{36}$/.test(requestId) || !/^[0-9a-f]{64}$/.test(claimToken)) return null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(requestId) || !/^[0-9a-f]{64}$/.test(claimToken)) return null;
   const [r] = await db().select().from(provisioningRequests).where(eq(provisioningRequests.id, requestId)).limit(1);
   if (!r?.claimTokenHash || r.operation !== "create" || !safeEqual(r.claimTokenHash, sha256Hex(claimToken))) return null;
   const accountId = r.accountId;
@@ -664,6 +665,7 @@ export async function revokeAccount(accountId: string, actor: AuditActor): Promi
     message: `Account ${acc.username ?? acc.remoteAccountId} revoked on ${server.name}.`,
   });
   await audit(actor, "account.revoke", { targetType: "account", targetId: accountId });
+  clearPublicCache(); // admin changes show on public pages immediately
 }
 
 // ---------------------------------------------------------------------------

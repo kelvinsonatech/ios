@@ -136,7 +136,7 @@ export default async function PrivacyPage() {
         <ul>
           <li>Encrypted one-time results: at most {lifetime}.</li>
           <li>Account records (without any credentials): kept after the account expires, for statistics and abuse prevention.</li>
-          <li>Problem reports: kept while we look into them; resolved reports can be deleted on request.</li>
+          <li>Problem reports: kept while we look into them, then deleted automatically 90 days after they are resolved (sooner on request).</li>
           <li>Server health history (no personal data): 7 days.</li>
         </ul>
       ),

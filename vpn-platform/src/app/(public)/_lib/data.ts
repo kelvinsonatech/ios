@@ -50,9 +50,12 @@ export const loadProtocols = cache(async (): Promise<PublicProtocolSummary[]> =>
   }
 });
 
+/** Site counters; account numbers are zeroed when the admin turned "Show account statistics" off. */
 export const loadStats = cache(async (): Promise<SiteStats | null> => {
   try {
-    return await getSiteStats();
+    const [stats, settings] = await Promise.all([getSiteStats(), loadSettings()]);
+    if (settings.display.showStats) return stats;
+    return { ...stats, accountsTotal: 0, accountsToday: 0, byProtocol: stats.byProtocol.map((p) => ({ ...p, total: 0, today: 0 })) };
   } catch (e) {
     logger.warn("public site: statistics unavailable", errorSummary(e));
     return null;

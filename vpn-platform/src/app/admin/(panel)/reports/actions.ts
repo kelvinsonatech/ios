@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { ActionState } from "@/lib/action-state";
 import { fieldErrors, safeAction } from "@/server/action-helpers";
 import { authorize } from "@/server/auth/guards";
-import { setReportStatus } from "@/server/reports/service";
+import { deleteReport, setReportStatus } from "@/server/reports/service";
 
 const statusInput = z.object({
   id: z.uuid("Invalid report id."),
@@ -27,5 +27,17 @@ export async function setReportStatusAction(id: string, status: string, note: st
     // The open-report counter lives in the panel layout (nav badge) and on the dashboard.
     revalidatePath("/admin", "layout");
     return { ok: true, message: input.data.status === "resolved" ? "Report marked as resolved." : "Report reopened." };
+  });
+}
+
+/** Permanently delete a report, e.g. when the reporter asks for it to be erased. */
+export async function deleteReportAction(id: string): Promise<ActionState> {
+  return safeAction("deleteReport", async () => {
+    const { actor } = await authorize("reports:manage");
+    const parsed = z.uuid().safeParse(id);
+    if (!parsed.success) return { error: "Invalid report id." };
+    await deleteReport(parsed.data, actor);
+    revalidatePath("/admin", "layout");
+    return { ok: true, message: "Report deleted." };
   });
 }

@@ -9,6 +9,7 @@ import type { ProtocolDefinition } from "@/server/provisioning/types";
 import { normalizeIdentifier } from "./identifiers";
 import { protocolSchema, type ProtocolInput } from "./validation";
 
+import { clearPublicCache } from "@/server/public/cache";
 export function toDefinition(p: Protocol, fields: ProtocolField[]): ProtocolDefinition {
   return {
     id: p.id,
@@ -145,6 +146,7 @@ export async function updateProtocol(id: string, raw: unknown, actor: AuditActor
     targetId: id,
     details: { enabled: input.enabled, identifiers: input.nodeIdentifiers, fields: input.fields.map((f) => f.key) },
   });
+  clearPublicCache(); // admin changes show on public pages immediately
 }
 
 /** Create a new protocol ("Protocol X"). Servers that report one of its identifiers pick it up on the next sync. */
@@ -178,6 +180,7 @@ export async function createProtocol(raw: unknown, actor: AuditActor): Promise<s
   });
   await logEvent({ event: "protocol.created", status: "success", protocolId: id, adminId: actor.adminId, message: `Protocol ${input.name} created.` });
   await audit(actor, "protocol.create", { targetType: "protocol", targetId: id, details: { slug: input.slug, adapter: input.adapterKey } });
+  clearPublicCache(); // admin changes show on public pages immediately
   return id;
 }
 
@@ -193,6 +196,7 @@ export async function setProtocolEnabled(id: string, enabled: boolean, actor: Au
     message: `Protocol ${row.name} ${enabled ? "enabled" : "disabled"} globally.`,
   });
   await audit(actor, "protocol.toggle", { targetType: "protocol", targetId: id, details: { enabled } });
+  clearPublicCache(); // admin changes show on public pages immediately
 }
 
 export async function getDefinitionsByIds(ids: string[]) {

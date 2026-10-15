@@ -19,7 +19,7 @@ import { countReportsByStatus } from "@/server/dashboard/queries";
 import { errorSummary, logger } from "@/server/logging/logger";
 import { listReports, type ReportListItem } from "@/server/reports/service";
 import { getSiteSettings } from "@/server/settings/service";
-import { ReportStatusButton } from "./report-actions";
+import { ReportDeleteButton, ReportStatusButton } from "./report-actions";
 
 export const metadata = { title: "Reports" };
 
@@ -223,7 +223,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                     </TableCell>
                     {manage ? (
                       <TableCell className="text-right">
-                        <ReportStatusButton id={r.id} status={r.status} note={r.adminNote} summary={summaryOf(r)} />
+                        <div className="flex items-center justify-end gap-1">
+                          <ReportStatusButton id={r.id} status={r.status} note={r.adminNote} summary={summaryOf(r)} />
+                          <ReportDeleteButton id={r.id} summary={summaryOf(r)} />
+                        </div>
                       </TableCell>
                     ) : null}
                   </TableRow>
@@ -248,7 +251,12 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   <ReplyLink email={r.contactEmail} siteName={settings.siteName} />
                   <div className="flex items-end justify-between gap-3 border-t pt-3">
                     <StatusCell r={r} />
-                    {manage ? <ReportStatusButton id={r.id} status={r.status} note={r.adminNote} summary={summaryOf(r)} className="shrink-0" /> : null}
+                    {manage ? (
+                      <div className="flex shrink-0 items-center gap-1">
+                        <ReportStatusButton id={r.id} status={r.status} note={r.adminNote} summary={summaryOf(r)} />
+                        <ReportDeleteButton id={r.id} summary={summaryOf(r)} />
+                      </div>
+                    ) : null}
                   </div>
                 </Card>
               </li>

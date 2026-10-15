@@ -65,7 +65,9 @@ export default async function AboutPage() {
           <>
             <HeroChip icon={<ServerIcon />}>{formatCount(stats.serversOnline)} servers online</HeroChip>
             <HeroChip icon={<GlobeIcon />}>{formatCount(stats.countries)} countries</HeroChip>
-            <HeroChip icon={<UserRoundIcon />}>{formatCount(stats.accountsTotal)} accounts created</HeroChip>
+            {settings.display.showStats ? (
+              <HeroChip icon={<UserRoundIcon />}>{formatCount(stats.accountsTotal)} accounts created</HeroChip>
+            ) : null}
           </>
         ) : (
           <HeroChip icon={<ServerIcon />}>{protocols.length} protocols</HeroChip>
@@ -106,7 +108,9 @@ export default async function AboutPage() {
               {[
                 { k: "Protocols", v: protocols.length },
                 { k: "Servers", v: stats?.serversOnline ?? protocols.reduce((n, p) => Math.max(n, p.serverCount), 0) },
-                { k: "Today", v: stats?.accountsToday ?? 0 },
+                settings.display.showStats
+                  ? { k: "Today", v: stats?.accountsToday ?? 0 }
+                  : { k: "Countries", v: stats?.countries ?? new Set(protocols.flatMap((p) => p.countries.map((c) => c.code))).size },
               ].map((x) => (
                 <div key={x.k} className="rounded-2xl bg-muted/60 px-2 py-3">
                   <p className="text-xl font-bold tabular-nums">{formatCount(x.v)}</p>
