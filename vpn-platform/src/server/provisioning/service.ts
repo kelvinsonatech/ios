@@ -15,7 +15,7 @@ import {
 import { env } from "@/server/env";
 import { decryptSecret, encryptSecret, EncryptionContext } from "@/server/crypto/encryption";
 import { hashClientIp, hmacSha256Hex, safeEqual, sha256Hex, stableStringify } from "@/server/crypto/hashing";
-import { rateLimit } from "@/server/auth/rate-limit";
+import { countRateLimit, peekRateLimit, rateLimit } from "@/server/auth/rate-limit";
 import { audit, type AuditActor } from "@/server/audit";
 import { logEvent } from "@/server/logging/events";
 import { errorSummary, logger } from "@/server/logging/logger";
@@ -65,6 +65,8 @@ export class ProvisioningError extends Error {
       resetsAt?: Date;
       /** RATE_LIMITED: seconds until the client may try again. */
       retryAfterSeconds?: number;
+      /** RATE_LIMITED: the per-day allowance per visitor and protocol, or the short burst limit. */
+      limitScope?: "daily" | "burst";
     } = {},
   ) {
     super(message);
@@ -77,6 +79,10 @@ export class ProvisioningError extends Error {
 
   get retryAfterSeconds() {
     return this.extra.retryAfterSeconds;
+  }
+
+  get limitScope() {
+    return this.extra.limitScope;
   }
 }
 
@@ -150,35 +156,41 @@ export async function requestAccount(p: AccountRequestParams): Promise<AccountRe
   const existing = await findByIdempotencyKey(idempotencyKey);
   if (existing) return replay(existing, digest, claimToken);
 
-  // RATE LIMIT
+  // RATE LIMIT. The burst limit counts every attempt; the daily limit is only checked here and
+  // counted once the request is accepted, so refused attempts (full, offline...) do not use it up.
   const ipHash = hashClientIp(p.clientIp);
+  const dailyKey = `prov:day:${ipHash ?? "unknown"}:${def.id}`;
   if (!p.actor) {
-    const key = ipHash ?? "unknown";
     const [burst, daily] = await Promise.all([
-      rateLimit(`prov:burst:${key}`, 5, 60, "closed"),
-      rateLimit(`prov:day:${key}:${def.id}`, loaded.protocol.maxAccountsPerIpPerDay, 86_400, "closed"),
+      rateLimit(`prov:burst:${ipHash ?? "unknown"}`, 5, 60, "closed"),
+      peekRateLimit(dailyKey, loaded.protocol.maxAccountsPerIpPerDay, 86_400, "closed"),
     ]);
     if (!burst.allowed || !daily.allowed) {
       throw new ProvisioningError(
         "RATE_LIMITED",
         !daily.allowed
-          ? `You have reached today's limit for ${def.name} accounts. Please try again tomorrow.`
+          ? `You have reached today's limit of ${loaded.protocol.maxAccountsPerIpPerDay} ${def.name} account${loaded.protocol.maxAccountsPerIpPerDay === 1 ? "" : "s"}. Please try again tomorrow or choose another protocol.`
           : "Too many requests. Please wait a minute and try again.",
         429,
         undefined,
-        { retryAfterSeconds: Math.max(!burst.allowed ? burst.resetSeconds : 0, !daily.allowed ? daily.resetSeconds : 0, 1) },
+        {
+          retryAfterSeconds: Math.max(!burst.allowed ? burst.resetSeconds : 0, !daily.allowed ? daily.resetSeconds : 0, 1),
+          limitScope: !daily.allowed ? "daily" : "burst",
+        },
       );
     }
   }
   const settings = await getSiteSettings();
-  const window = quotaWindow(new Date(), settings.quota.resetTimes, settings.quota.timezone);
 
   // CHECK SERVER / PROTOCOL / CAPACITY, CREATE PENDING RECORDS (one transaction, row locks)
   const requestId = randomUUID();
   let accountId: string;
+  let window = quotaWindow(new Date(), settings.quota.resetTimes, settings.quota.timezone);
   try {
     accountId = await db().transaction(async (tx) => {
       const [server] = await tx.select().from(servers).where(eq(servers.id, p.serverId)).for("update");
+      // Computed under the row lock, so requests are counted in the window they are serialised in.
+      window = quotaWindow(new Date(), settings.quota.resetTimes, settings.quota.timezone);
       if (!server || server.deletedAt || server.lifecycle === "draft" || server.lifecycle === "disabled") {
         throw new ProvisioningError("SERVER_NOT_FOUND", "This server is not available.", 404);
       }
@@ -253,6 +265,8 @@ export async function requestAccount(p: AccountRequestParams): Promise<AccountRe
     }
     throw e;
   }
+
+  if (!p.actor) await countRateLimit(dailyKey, 86_400);
 
   await logEvent({
     event: "account.requested",
@@ -469,7 +483,9 @@ export async function reconcile(requestId: string): Promise<void> {
       if (requeued) await enqueueProvisioning({ type: "create", requestId }, { delayMs: 1_000 });
       return;
     }
-    await finalizeFailure(l, l.request.errorCode ?? "PROVISIONING_FAILED", l.request.errorMessage ?? "Provisioning failed.", started);
+    // Still unconfirmed after every attempt (in progress or timing out on the node): the account may
+    // yet be created there, so this is an unknown outcome, not a definite failure.
+    await finalizeFailure(l, "OUTCOME_UNKNOWN", l.request.errorMessage ?? "Server could not confirm the account.", started, { keepCapacity: true });
   } catch (e) {
     // Node still unreachable: keep the request uncertain and try again later, then give up safely.
     if (age > MAX_RECONCILE_AGE_MS) {
@@ -562,7 +578,14 @@ async function finalizeFailure(
   await db().transaction(async (tx) => {
     await tx
       .update(vpnAccounts)
-      .set({ status: "failed", failureCode: code, failureMessage: safeMessage.slice(0, 500) })
+      .set({
+        status: "failed",
+        failureCode: code,
+        failureMessage: safeMessage.slice(0, 500),
+        // An unknown outcome keeps its slot until the account would have expired; the expiry job
+        // then frees the slot and removes the account from the server if it was created after all.
+        ...(opts.keepCapacity ? { expiresAt: sql`${vpnAccounts.createdAt} + ${l.account.durationDays} * interval '1 day'` } : {}),
+      })
       .where(eq(vpnAccounts.id, l.account.id));
     await tx
       .update(provisioningRequests)

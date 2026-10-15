@@ -189,6 +189,9 @@ export interface PublicApiError {
     fieldErrors?: Record<string, string[]>;
     /** For RATE_LIMITED. */
     retryAfterSeconds?: number;
+    /** For RATE_LIMITED from account creation: "daily" = the per-day allowance for this protocol is
+     *  used up (the message names the limit); "burst" = too many attempts in a short time. */
+    limitScope?: "daily" | "burst";
     /** For QUOTA_REACHED: when the server's creation quota resets (ISO). */
     resetsAt?: string;
   };

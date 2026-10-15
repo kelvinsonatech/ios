@@ -5,7 +5,7 @@ import { db } from "@/server/db";
 import { provisioningLogs, provisioningRequests, serverHealth, servers, vpnAccounts } from "@/server/db/schema";
 import { redis } from "@/server/redis";
 import { expireAccounts, processExpiredRevokes } from "@/server/provisioning/expiry";
-import { executeCreate, requestAccount } from "@/server/provisioning/service";
+import { executeCreate, reconcile, requestAccount } from "@/server/provisioning/service";
 import { checkServerHealth, purgeHealthHistory, runDueHealthChecks } from "@/server/servers/health";
 import { publishServer, updateServerConnection } from "@/server/servers/service";
 import { syncServer, testConnection } from "@/server/servers/sync";
@@ -212,6 +212,64 @@ describe("account expiry (website side)", () => {
     expect(node.state.accounts.get(acc.remoteAccountId!)?.status).toBe("revoked");
     const [done] = await db().select().from(provisioningRequests).where(eq(provisioningRequests.id, req!.id));
     expect(done).toMatchObject({ state: "succeeded", attempts: 2 });
+  });
+
+  it("never gives up removing an expired account; warns once after about 6 hours of failures", async () => {
+    const acc = await create(serverId, "expire_never_give_up");
+    await updateServerConnection(serverId, conn("wrong-secret-0123456789abcdef"), actor);
+    await expireAccounts();
+    const [req] = await db().select().from(provisioningRequests).where(eq(provisioningRequests.idempotencyKey, `expire:${acc.id}`));
+    await db().execute(sql`update provisioning_requests set attempts = 11, updated_at = now() - interval '2 hours' where id = ${req!.id}`);
+    expect(await processExpiredRevokes()).toEqual({ removed: 0, retrying: 1, failed: 0 });
+    await db().execute(sql`update provisioning_requests set updated_at = now() - interval '2 hours' where id = ${req!.id}`);
+    expect(await processExpiredRevokes()).toEqual({ removed: 0, retrying: 1, failed: 0 });
+    const [still] = await db().select().from(provisioningRequests).where(eq(provisioningRequests.id, req!.id));
+    expect(still).toMatchObject({ state: "queued", attempts: 13 });
+    const warnings = (await events(serverId, "account.expired")).filter((e) => e.requestId === req!.id && e.status === "failure");
+    expect(warnings).toHaveLength(1);
+
+    await updateServerConnection(serverId, conn(SECRET), actor);
+    await db().execute(sql`update provisioning_requests set updated_at = now() - interval '2 hours' where id = ${req!.id}`);
+    expect(await processExpiredRevokes()).toEqual({ removed: 1, retrying: 0, failed: 0 });
+    expect(node.state.accounts.get(acc.remoteAccountId!)?.status).toBe("revoked");
+  });
+
+  it("leaves removals for servers marked offline in the queue without using attempts", async () => {
+    const acc = await create(serverId, "expire_offline");
+    await expireAccounts();
+    await db().update(servers).set({ healthStatus: "offline" }).where(eq(servers.id, serverId));
+    expect(await processExpiredRevokes()).toEqual({ removed: 0, retrying: 0, failed: 0 });
+    const [req] = await db().select().from(provisioningRequests).where(eq(provisioningRequests.idempotencyKey, `expire:${acc.id}`));
+    expect(req).toMatchObject({ state: "queued", attempts: 0 });
+    await db().update(servers).set({ healthStatus: "online" }).where(eq(servers.id, serverId));
+    expect(await processExpiredRevokes()).toEqual({ removed: 1, retrying: 0, failed: 0 });
+  });
+
+  it("an unconfirmed account keeps its slot until its deadline, then frees it and is removed if the node created it", async () => {
+    const r = await requestAccount({ serverId, protocolSlug: "ssh", input: { username: "expire_unknown", password: "S3cure-pass", duration: "7" }, idempotencyKey: randomUUID(), clientIp: nextIp() });
+    node.state.createDelayMs = 2_500; // longer than NODE_PROVISION_TIMEOUT_MS: outcome unknown
+    await executeCreate(r.requestId);
+    node.state.createDelayMs = 0;
+    await new Promise((res) => setTimeout(res, 1_200)); // the node finishes creating it
+    // The node stays unreachable for longer than the reconcile window.
+    await updateServerConnection(serverId, conn("wrong-secret-0123456789abcdef"), actor);
+    await db().execute(sql`update provisioning_requests set started_at = now() - interval '1 hour' where id = ${r.requestId}`);
+    await reconcile(r.requestId);
+    const [acc] = await db().select().from(vpnAccounts).where(eq(vpnAccounts.username, "expire_unknown"));
+    expect(acc).toMatchObject({ status: "failed", failureCode: "OUTCOME_UNKNOWN", holdsCapacity: true, remoteAccountId: null });
+    expect(acc!.expiresAt!.getTime() - acc!.createdAt.getTime()).toBe(7 * 86_400_000);
+    const remote = [...node.state.accounts.values()].find((a) => a.username === "expire_unknown")!;
+    expect(remote.status).toBe("active");
+
+    await updateServerConnection(serverId, conn(SECRET), actor);
+    const before = (await server(serverId)).currentAccounts;
+    await db().update(vpnAccounts).set({ expiresAt: new Date(Date.now() - 60_000) }).where(eq(vpnAccounts.id, acc!.id));
+    expect(await expireAccounts()).toEqual({ expired: 1, revokesQueued: 1 });
+    const [after] = await db().select().from(vpnAccounts).where(eq(vpnAccounts.id, acc!.id));
+    expect(after).toMatchObject({ status: "failed", holdsCapacity: false });
+    expect((await server(serverId)).currentAccounts).toBe(before - 1);
+    expect(await processExpiredRevokes()).toEqual({ removed: 1, retrying: 0, failed: 0 });
+    expect(remote.status).toBe("revoked");
   });
 
   it("does not send removals to nodes that expire accounts themselves", async () => {

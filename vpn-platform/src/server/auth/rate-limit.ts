@@ -33,6 +33,39 @@ export async function rateLimit(
   }
 }
 
+/**
+ * Check a fixed-window limit without counting this attempt. Pair it with `countRateLimit` once the
+ * action has really happened, so refused or failed attempts do not use up the allowance.
+ */
+export async function peekRateLimit(
+  key: string,
+  limit: number,
+  windowSeconds: number,
+  failMode: "open" | "closed" = "closed",
+): Promise<RateLimitResult> {
+  const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
+  try {
+    const count = Number((await redis().get(`rl:${key}:${bucket}`)) ?? 0);
+    const resetSeconds = windowSeconds - (Math.floor(Date.now() / 1000) % windowSeconds);
+    return { allowed: count < limit, remaining: Math.max(0, limit - count), resetSeconds };
+  } catch (e) {
+    logger.error("rate limiter unavailable", { key, error: (e as Error).message, failMode });
+    return { allowed: failMode === "open", remaining: 0, resetSeconds: windowSeconds };
+  }
+}
+
+/** Count one completed action in the same window `peekRateLimit` reads. Best effort. */
+export async function countRateLimit(key: string, windowSeconds: number): Promise<void> {
+  const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
+  const redisKey = `rl:${key}:${bucket}`;
+  await redis()
+    .multi()
+    .incr(redisKey)
+    .expire(redisKey, windowSeconds + 5)
+    .exec()
+    .catch((e: unknown) => logger.error("rate limiter unavailable", { key, error: (e as Error).message }));
+}
+
 export async function resetRateLimit(key: string, windowSeconds: number) {
   const bucket = Math.floor(Date.now() / 1000 / windowSeconds);
   await redis().del(`rl:${key}:${bucket}`).catch(() => {});

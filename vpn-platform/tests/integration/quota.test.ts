@@ -95,6 +95,48 @@ describe("creation quota", () => {
     expect(r.quotaWindowStart?.toISOString()).toBe(w.start.toISOString());
   });
 
+  it("never moves the window backwards when a request computed an older window", async () => {
+    const w = await window();
+    const newer = new Date(w.start.getTime() + 12 * 3_600_000);
+    await db().update(serverProtocols).set({ quotaLimit: 2, quotaUsed: 2, quotaWindowStart: newer }).where(eq(serverProtocols.id, (await row()).id));
+    // The stored (newer) window is full: a request that computes the current, older window is refused.
+    await expect(request("quota_late_full")).rejects.toMatchObject({ code: "QUOTA_REACHED" });
+    expect((await row()).quotaWindowStart?.toISOString()).toBe(newer.toISOString());
+    await db().update(serverProtocols).set({ quotaUsed: 1 }).where(eq(serverProtocols.id, (await row()).id));
+    await request("quota_late_ok");
+    const r = await row();
+    expect(r).toMatchObject({ quotaUsed: 2 });
+    expect(r.quotaWindowStart?.toISOString()).toBe(newer.toISOString());
+    const [a] = await db().select().from(vpnAccounts).where(eq(vpnAccounts.username, "quota_late_ok"));
+    expect(a!.quotaWindowStart?.toISOString()).toBe(newer.toISOString());
+    await db().update(serverProtocols).set({ quotaLimit: 50, quotaUsed: 0, quotaWindowStart: w.start }).where(eq(serverProtocols.id, r.id));
+  });
+
+  it("refused attempts do not use up the visitor's daily limit", async () => {
+    const ip = "198.51.100.250";
+    const [ssh] = await db().select().from(protocols).where(eq(protocols.id, sshId));
+    const limit = ssh!.maxAccountsPerIpPerDay;
+    const as = (username: string) =>
+      requestAccount({ serverId, protocolSlug: "ssh", input: sshInput(username), idempotencyKey: randomUUID(), clientIp: ip });
+    await updateServerProtocols(serverId, [{ protocolId: sshId, enabled: true, maxAccounts: null, quotaLimit: 1 }], actor);
+    await db().update(serverProtocols).set({ quotaUsed: 1, quotaWindowStart: (await window()).start }).where(eq(serverProtocols.id, (await row()).id));
+    await expect(as("daily_refused_1")).rejects.toMatchObject({ code: "QUOTA_REACHED" });
+    await expect(as("daily_refused_2")).rejects.toMatchObject({ code: "QUOTA_REACHED" });
+    await updateServerProtocols(serverId, [{ protocolId: sshId, enabled: true, maxAccounts: null, quotaLimit: 100 }], actor);
+    const clearBurst = async () => {
+      for (const k of await redis().keys("rl:prov:burst:*")) await redis().del(k);
+    };
+    for (let i = 0; i < limit; i++) {
+      await clearBurst(); // only the short burst limit; the daily count stays
+      await as(`daily_ok_${i}`);
+    }
+    await clearBurst();
+    const err = (await as("daily_over").catch((e: unknown) => e)) as ProvisioningError;
+    expect(err).toMatchObject({ code: "RATE_LIMITED", httpStatus: 429 });
+    expect(err.limitScope).toBe("daily");
+    expect(err.message).toMatch(new RegExp(`limit of ${limit} SSH`));
+  });
+
   it("gives the slot back only for definite provisioning failures in the same window", async () => {
     await db().update(serverProtocols).set({ quotaLimit: 10, quotaUsed: 0 }).where(eq(serverProtocols.id, (await row()).id));
     const before = (await row()).quotaUsed;

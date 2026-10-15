@@ -26,9 +26,9 @@ export function apiError(status: number, code: string, message: string, extra: O
   return noStoreJson(body, status, headers);
 }
 
-export function rateLimited(message: string, retryAfterSeconds: number) {
+export function rateLimited(message: string, retryAfterSeconds: number, limitScope?: "daily" | "burst") {
   const seconds = Math.max(1, Math.ceil(retryAfterSeconds));
-  return apiError(429, "RATE_LIMITED", message, { retryAfterSeconds: seconds }, { "Retry-After": String(seconds) });
+  return apiError(429, "RATE_LIMITED", message, { retryAfterSeconds: seconds, ...(limitScope ? { limitScope } : {}) }, { "Retry-After": String(seconds) });
 }
 
 /** True when the browser says the request comes from this site (APP_URL or the request's own origin). */

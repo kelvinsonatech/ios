@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     return noStoreJson(res, 202);
   } catch (e) {
     if (e instanceof ProvisioningError) {
-      if (e.code === "RATE_LIMITED") return rateLimited(e.message, e.retryAfterSeconds ?? 60);
+      if (e.code === "RATE_LIMITED") return rateLimited(e.message, e.retryAfterSeconds ?? 60, e.limitScope);
       return apiError(e.httpStatus, e.code, e.message, {
         ...(e.fieldErrors ? { fieldErrors: e.fieldErrors } : {}),
         ...(e.resetsAt ? { resetsAt: e.resetsAt.toISOString() } : {}),

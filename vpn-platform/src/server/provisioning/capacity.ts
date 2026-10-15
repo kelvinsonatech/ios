@@ -30,24 +30,27 @@ export async function reserveCapacity(tx: Tx, serverId: string, serverProtocolId
     .returning({ id: servers.id });
   if (!s) return { ok: false, reason: "server_full", resetsAt: null };
 
+  // The stored window counts when it is the computed one or a newer one: a request that computed
+  // its window just before a reset but got the row lock after a newer request must not move the
+  // counter back to the old window (that would reset the new window's count).
   const start = sql`${window.start.toISOString()}::timestamptz`;
-  const sameWindow = sql`${serverProtocols.quotaWindowStart} is not distinct from ${start}`;
+  const current = sql`(${serverProtocols.quotaWindowStart} is not null and ${serverProtocols.quotaWindowStart} >= ${start})`;
   const [sp] = await tx
     .update(serverProtocols)
     .set({
       currentAccounts: sql`${serverProtocols.currentAccounts} + 1`,
-      quotaUsed: sql`case when ${sameWindow} then ${serverProtocols.quotaUsed} + 1 else 1 end`,
-      quotaWindowStart: sql`${start}`,
+      quotaUsed: sql`case when ${current} then ${serverProtocols.quotaUsed} + 1 else 1 end`,
+      quotaWindowStart: sql`greatest(${serverProtocols.quotaWindowStart}, ${start})`,
     })
     .where(
       and(
         eq(serverProtocols.id, serverProtocolId),
         sql`(${serverProtocols.maxAccounts} is null or ${serverProtocols.currentAccounts} < ${serverProtocols.maxAccounts})`,
-        sql`(${serverProtocols.quotaLimit} is null or not (${sameWindow}) or ${serverProtocols.quotaUsed} < ${serverProtocols.quotaLimit})`,
+        sql`(${serverProtocols.quotaLimit} is null or not ${current} or ${serverProtocols.quotaUsed} < ${serverProtocols.quotaLimit})`,
       ),
     )
-    .returning({ id: serverProtocols.id });
-  if (sp) return { ok: true, quotaWindowStart: window.start };
+    .returning({ id: serverProtocols.id, quotaWindowStart: serverProtocols.quotaWindowStart });
+  if (sp) return { ok: true, quotaWindowStart: sp.quotaWindowStart ?? window.start };
 
   // Undo the server increment so the function never leaves a partial reservation behind.
   await tx
