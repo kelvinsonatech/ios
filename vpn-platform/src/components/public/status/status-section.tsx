@@ -1,5 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRightIcon, PlusIcon } from "lucide-react";
+import { ArrowRightIcon, ChevronDownIcon, PlusIcon } from "lucide-react";
 import { ProtocolIcon } from "@/components/protocol-icon";
 import { AvailabilityBadge } from "@/components/public/availability-badge";
 import { Flag } from "@/components/public/flag";
@@ -11,6 +14,9 @@ import { cn } from "@/lib/utils";
 import type { PublicCapacity, PublicServerCard, StatusPageData } from "@/lib/public/types";
 
 type Section = StatusPageData["sections"][number];
+
+/** Servers shown per protocol on phones before "Show all" (only in the unfiltered overview). */
+const MOBILE_PREVIEW = 4;
 
 /** "Online" for this page means the server answers (available or full). */
 export function isOnline(s: PublicServerCard) {
@@ -109,10 +115,10 @@ function HostCell({ server }: { server: PublicServerCard }) {
   return <span className="block truncate text-xs text-muted-foreground lg:text-sm">{server.city ?? server.country.name}</span>;
 }
 
-function ServerRow({ server: s, protocolName }: { server: PublicServerCard; protocolName: string }) {
+function ServerRow({ server: s, protocolName, className }: { server: PublicServerCard; protocolName: string; className?: string }) {
   const actionable = s.availability === "available" || s.availability === "full";
   return (
-    <div role="row" className={cn(ROW, "transition-colors lg:hover:bg-muted/30")}>
+    <div role="row" className={cn(ROW, "transition-colors lg:hover:bg-muted/30", className)}>
       <div role="cell" className={cn(CELL, "[grid-area:server] lg:pr-3 lg:pl-5")}>
         <div className="flex min-w-0 items-center gap-2.5">
           <Flag code={s.country.code} className="h-4 w-5.5 lg:h-3.5 lg:w-5" title={s.country.name} />
@@ -147,9 +153,17 @@ function ServerRow({ server: s, protocolName }: { server: PublicServerCard; prot
   );
 }
 
-/** One protocol on the status page: header with a health dot, then the responsive server table. */
-export function StatusSection({ section }: { section: Section }) {
+/**
+ * One protocol on the status page: header with a health dot, then the responsive server table.
+ * With `previewOnMobile` (the unfiltered overview) phones show the first few servers and a
+ * "Show all" button, so nine protocols do not turn into one endless list; desktop always shows all.
+ */
+export function StatusSection({ section, previewOnMobile = false }: { section: Section; previewOnMobile?: boolean }) {
   const { protocol, servers } = section;
+  const [expanded, setExpanded] = useState(false);
+  // Hiding a single row would save nothing: only collapse when at least two would be hidden.
+  const collapsed = previewOnMobile && !expanded && servers.length > MOBILE_PREVIEW + 1;
+  const tableId = `status-table-${protocol.slug}`;
   const online = servers.filter(isOnline).length;
   const available = servers.some((s) => s.availability === "available");
   const dot = available ? "bg-success" : online > 0 ? "bg-warning" : "bg-destructive";
@@ -181,7 +195,7 @@ export function StatusSection({ section }: { section: Section }) {
         </Link>
       </header>
 
-      <div role="table" aria-label={`${protocol.name} servers`} aria-rowcount={servers.length + 1} className="text-sm">
+      <div id={tableId} role="table" aria-label={`${protocol.name} servers`} aria-rowcount={servers.length + 1} className="text-sm">
         <div role="rowgroup" className="sr-only lg:not-sr-only">
           <div role="row" className={cn("bg-muted/40 text-left text-xs text-muted-foreground lg:grid", COLS)}>
             <span role="columnheader" className="px-5 py-2.5 font-medium [grid-area:server]">
@@ -208,11 +222,19 @@ export function StatusSection({ section }: { section: Section }) {
           </div>
         </div>
         <div role="rowgroup" className="divide-y">
-          {servers.map((s) => (
-            <ServerRow key={s.id} server={s} protocolName={protocol.name} />
+          {servers.map((s, i) => (
+            <ServerRow key={s.id} server={s} protocolName={protocol.name} className={collapsed && i >= MOBILE_PREVIEW ? "max-lg:hidden" : undefined} />
           ))}
         </div>
       </div>
+      {collapsed ? (
+        <div className="bg-muted/30 p-3 lg:hidden">
+          <Button type="button" variant="ghost" className="h-11 w-full text-primary hover:text-primary" aria-controls={tableId} onClick={() => setExpanded(true)}>
+            <ChevronDownIcon aria-hidden />
+            Show all {servers.length} {protocol.name} servers
+          </Button>
+        </div>
+      ) : null}
     </section>
   );
 }

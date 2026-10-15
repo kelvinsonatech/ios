@@ -31,13 +31,16 @@ function Tile({
       </span>
       <div className="min-w-0">
         <p className="text-2xl leading-none font-bold tracking-tight tabular-nums">{nf.format(value)}</p>
-        <p className="mt-1 truncate text-xs text-muted-foreground">{label}</p>
+        <p className="mt-1 text-xs leading-tight text-pretty text-muted-foreground">{label}</p>
       </div>
     </div>
   );
 }
 
-/** Summary tiles above the status tables (services, servers, online, offline, maintenance/full). */
+/**
+ * Summary tiles above the status tables (services, servers, online, offline, maintenance/full).
+ * Phones: services full width, then a 2 × 2 block; tablets 3 + 2; desktop one row of five.
+ */
 export function StatusSummary({ totals, className }: { totals: StatusPageData["totals"]; className?: string }) {
   return (
     <div className={cn("grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5", className)}>
@@ -45,7 +48,7 @@ export function StatusSummary({ totals, className }: { totals: StatusPageData["t
       <Tile icon={<ServerIcon />} label="Servers" value={totals.servers} tone="muted" />
       <Tile icon={<WifiIcon />} label="Online" value={totals.online} tone="success" />
       <Tile icon={<WifiOffIcon />} label="Offline" value={totals.offline} tone="danger" />
-      <Tile icon={<CircleSlashIcon />} label="Maintenance / full" value={totals.maintenance + totals.full} tone="warning" className="col-span-2 sm:col-span-1" />
+      <Tile icon={<CircleSlashIcon />} label="Maintenance / full" value={totals.maintenance + totals.full} tone="warning" />
     </div>
   );
 }

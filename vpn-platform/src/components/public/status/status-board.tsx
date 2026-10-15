@@ -240,8 +240,11 @@ export function StatusBoard({
         <TimerIcon className="size-4 text-primary" aria-hidden />
         <span>Slots reset daily at {resetLabel}</span>
         {nextResetAt ? (
-          <span>
-            · <Countdown iso={nextResetAt} label="next reset" doneText="resetting now" className="font-medium text-foreground" />
+          <span className="whitespace-nowrap">
+            <span aria-hidden className="hidden sm:inline">
+              ·{" "}
+            </span>
+            <Countdown iso={nextResetAt} label="Next reset" doneText="Resetting now" className="font-medium text-foreground" />
           </span>
         ) : null}
       </p>
@@ -326,7 +329,7 @@ export function StatusBoard({
       ) : (
         <div className="grid gap-6">
           {sections.map((sec) => (
-            <StatusSection key={sec.protocol.slug} section={sec} />
+            <StatusSection key={sec.protocol.slug} section={sec} previewOnMobile={!filtered} />
           ))}
         </div>
       )}
