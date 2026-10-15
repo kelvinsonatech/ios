@@ -19,25 +19,27 @@ export function isOnline(s: PublicServerCard) {
 
 /**
  * Row layout shared by the header and every server. One markup for all widths (half the DOM of a
- * table plus separate cards): on phones each row is a card laid out with grid areas, from md up the
- * same cells line up as table columns. Fixed column tracks keep refreshes free of layout jumps.
+ * table plus separate cards): on phones and tablets each row is a card laid out with grid areas,
+ * from lg up the same cells line up as table columns. Column tracks have minimum widths for the
+ * badge and the button, so refreshes never shift the layout.
  */
 const COLS =
-  "md:grid-cols-[minmax(0,2.3fr)_minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.25fr)_minmax(0,1fr)] md:[grid-template-areas:'server_host_status_resp_check_rem_action']";
+  "lg:grid-cols-[minmax(0,2.2fr)_minmax(0,2fr)_minmax(8.5rem,1.2fr)_minmax(5rem,0.9fr)_minmax(6.75rem,1fr)_minmax(7rem,1.1fr)_8rem] lg:[grid-template-areas:'server_host_status_resp_check_rem_action']";
 const ROW = cn(
   "grid grid-cols-3 gap-y-3 px-4 py-4 [grid-template-areas:'server_server_status'_'host_host_host'_'resp_check_rem'_'action_action_action']",
-  "md:items-center md:gap-0 md:px-0 md:py-0",
+  "lg:items-center lg:gap-0 lg:px-0 lg:py-0",
   COLS,
 );
-/** Desktop cell padding (first and last columns get the card's 20 px inset). */
-const CELL = "min-w-0 md:px-3 md:py-3";
+/** Desktop cell padding (the first and last columns get the card's 20 px inset instead). */
+const CELL = "min-w-0 lg:py-3";
+const PAD = "lg:px-3";
 /** The three metrics form one tinted strip on phones. */
-const METRIC = "min-w-0 bg-muted/40 px-3 py-2.5 text-xs md:bg-transparent md:px-3 md:py-3 md:text-sm";
+const METRIC = "min-w-0 bg-muted/40 px-3 py-2.5 text-xs lg:bg-transparent lg:px-3 lg:py-3 lg:text-sm";
 
 function MobileLabel({ children }: { children: React.ReactNode }) {
   // The column header already names the cell for assistive tech.
   return (
-    <span aria-hidden className="mb-0.5 block text-muted-foreground md:hidden">
+    <span aria-hidden className="mb-0.5 block text-muted-foreground lg:hidden">
       {children}
     </span>
   );
@@ -73,7 +75,7 @@ function Slots({ capacity, className }: { capacity: PublicCapacity; className?: 
 function Action({ server, protocolName }: { server: PublicServerCard; protocolName: string }) {
   if (server.availability === "available") {
     return (
-      <Button asChild size="sm" className="h-10 w-full rounded-lg md:h-9 md:w-auto">
+      <Button asChild size="sm" className="h-10 w-full rounded-lg sm:w-auto sm:px-5 lg:h-9 lg:px-2.5">
         <Link href={server.href} aria-label={`Create ${protocolName} account on ${server.name}`}>
           <PlusIcon aria-hidden />
           Create
@@ -83,7 +85,7 @@ function Action({ server, protocolName }: { server: PublicServerCard; protocolNa
   }
   if (server.availability === "full") {
     return (
-      <Badge variant="info" className="h-10 w-full rounded-lg text-sm md:h-7 md:w-auto md:rounded-md md:px-2.5 md:text-xs">
+      <Badge variant="info" className="h-10 w-full rounded-lg text-sm sm:w-auto sm:px-5 lg:h-7 lg:rounded-md lg:px-2.5 lg:text-xs">
         Full
       </Badge>
     );
@@ -99,46 +101,46 @@ function Action({ server, protocolName }: { server: PublicServerCard; protocolNa
 function HostCell({ server }: { server: PublicServerCard }) {
   if (server.hostname) {
     return (
-      <span className="block truncate font-mono text-xs text-muted-foreground md:text-[0.8rem] md:text-foreground" title={server.hostname}>
+      <span className="block truncate font-mono text-xs text-muted-foreground lg:text-[0.8rem] lg:text-foreground" title={server.hostname}>
         {server.hostname}
       </span>
     );
   }
-  return <span className="block truncate text-xs text-muted-foreground md:text-sm">{server.city ?? server.country.name}</span>;
+  return <span className="block truncate text-xs text-muted-foreground lg:text-sm">{server.city ?? server.country.name}</span>;
 }
 
 function ServerRow({ server: s, protocolName }: { server: PublicServerCard; protocolName: string }) {
   const actionable = s.availability === "available" || s.availability === "full";
   return (
-    <div role="row" className={cn(ROW, "transition-colors md:hover:bg-muted/30")}>
-      <div role="cell" className={cn(CELL, "[grid-area:server] md:pl-5")}>
+    <div role="row" className={cn(ROW, "transition-colors lg:hover:bg-muted/30")}>
+      <div role="cell" className={cn(CELL, "[grid-area:server] lg:pr-3 lg:pl-5")}>
         <div className="flex min-w-0 items-center gap-2.5">
-          <Flag code={s.country.code} className="h-4 w-5.5 md:h-3.5 md:w-5" title={s.country.name} />
+          <Flag code={s.country.code} className="h-4 w-5.5 lg:h-3.5 lg:w-5" title={s.country.name} />
           <div className="min-w-0">
             <p className="truncate font-semibold">{s.name}</p>
-            <p className="hidden truncate text-xs text-muted-foreground md:block">{[s.city, s.country.name].filter(Boolean).join(", ")}</p>
+            <p className="hidden truncate text-xs text-muted-foreground lg:block">{[s.city, s.country.name].filter(Boolean).join(", ")}</p>
           </div>
         </div>
       </div>
-      <div role="cell" className={cn(CELL, "-mt-2 pl-8 [grid-area:host] md:mt-0 md:pl-3")}>
+      <div role="cell" className={cn(CELL, "-mt-2 pl-8 [grid-area:host] lg:mt-0 lg:pr-3 lg:pl-3")}>
         <HostCell server={s} />
       </div>
-      <div role="cell" className={cn(CELL, "self-start justify-self-end [grid-area:status] md:self-center md:justify-self-start")}>
+      <div role="cell" className={cn(CELL, PAD, "self-start justify-self-end [grid-area:status] lg:self-center lg:justify-self-start")}>
         <AvailabilityBadge availability={s.availability} />
       </div>
-      <div role="cell" className={cn(METRIC, "rounded-l-xl [grid-area:resp] md:rounded-none")}>
+      <div role="cell" className={cn(METRIC, "rounded-l-xl [grid-area:resp] lg:rounded-none")}>
         <MobileLabel>Response</MobileLabel>
         <Latency ms={s.latencyMs} className="font-medium" />
       </div>
       <div role="cell" className={cn(METRIC, "text-muted-foreground [grid-area:check]")}>
         <MobileLabel>Checked</MobileLabel>
-        <RelativeTime iso={s.lastCheckedAt} fallback="Not yet" className="block truncate font-medium text-foreground md:font-normal md:text-muted-foreground" />
+        <RelativeTime iso={s.lastCheckedAt} fallback="Not yet" className="block truncate font-medium text-foreground lg:font-normal lg:text-muted-foreground" />
       </div>
-      <div role="cell" className={cn(METRIC, "rounded-r-xl [grid-area:rem] md:rounded-none")}>
+      <div role="cell" className={cn(METRIC, "rounded-r-xl [grid-area:rem] lg:rounded-none")}>
         <MobileLabel>Remaining</MobileLabel>
         <Slots capacity={s.capacity} />
       </div>
-      <div role="cell" className={cn(CELL, "[grid-area:action] md:pr-5 md:text-right", !actionable && "hidden md:block")}>
+      <div role="cell" className={cn(CELL, "[grid-area:action] sm:text-right lg:pr-5 lg:pl-3", !actionable && "hidden lg:block")}>
         <Action server={s} protocolName={protocolName} />
       </div>
     </div>
@@ -180,8 +182,8 @@ export function StatusSection({ section }: { section: Section }) {
       </header>
 
       <div role="table" aria-label={`${protocol.name} servers`} aria-rowcount={servers.length + 1} className="text-sm">
-        <div role="rowgroup" className="sr-only md:not-sr-only">
-          <div role="row" className={cn("bg-muted/40 text-left text-xs text-muted-foreground md:grid", COLS)}>
+        <div role="rowgroup" className="sr-only lg:not-sr-only">
+          <div role="row" className={cn("bg-muted/40 text-left text-xs text-muted-foreground lg:grid", COLS)}>
             <span role="columnheader" className="px-5 py-2.5 font-medium [grid-area:server]">
               Server
             </span>
