@@ -6,10 +6,22 @@ import type { PublicFormField, PublicProtocolDetail } from "@/lib/public/types";
  */
 
 const CONTROL = /[\u0000-\u001F\u007F]/;
-/** Characters the backend accepts in usernames / remarks / passwords (adapter hard guards). */
-const USERNAME_CHARS = /^[a-z0-9_.-]*$/;
+/**
+ * The adapters' hard guards (src/server/provisioning/adapters/guards.ts): Linux account names for
+ * the SSH family, Hysteria, ZIVPN, OpenVPN and NoobzVPN; "remarks" for V2Ray-family protocols and
+ * Shadowsocks. Usernames are lower-cased while typing, so only the lowercase forms matter here.
+ */
+const LINUX_USERNAME = /^[a-z][a-z0-9_]*$/;
+const REMARK_USERNAME = /^[a-z0-9][a-z0-9_.-]*$/;
 const PASSWORD_CHARS = /^[A-Za-z0-9@#%^*_+=.,:~-]*$/;
-const HOST_CHARS = /^[A-Za-z0-9._-]*$/;
+const BUG_HOST = /^(?=.{3,128}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+const REMARK_PROTOCOLS = new Set(["shadowsocks", "wireguard"]);
+
+type ValidationContext = Pick<PublicProtocolDetail, "durationOptions"> & Partial<Pick<PublicProtocolDetail, "slug" | "category">>;
+
+function usesRemarkNames(protocol: ValidationContext): boolean {
+  return protocol.category === "v2ray" || (!!protocol.slug && REMARK_PROTOCOLS.has(protocol.slug));
+}
 
 export function isAdvancedField(f: PublicFormField): boolean {
   return f.key.startsWith("sni_");
@@ -34,8 +46,8 @@ export function initialValues(protocol: PublicProtocolDetail): Record<string, st
 /** Normalise while typing: usernames are lowercase, nothing may contain line breaks. */
 export function normalizeInput(f: PublicFormField, value: string): string {
   let v = value.replace(/[\r\n\t]/g, "");
-  if (f.key === "username") v = v.toLowerCase().replace(/\s/g, "");
-  if (f.type === "password" || f.key === "sni_bug") v = v.replace(/\s/g, "");
+  if (f.key === "username" || f.key === "sni_bug") v = v.toLowerCase().replace(/\s/g, "");
+  if (f.type === "password") v = v.replace(/\s/g, "");
   return v;
 }
 
@@ -49,7 +61,7 @@ function compilePattern(pattern: string | undefined): RegExp | null {
 }
 
 /** First problem with a value, or null when it looks fine. */
-export function validateField(f: PublicFormField, raw: string, protocol: Pick<PublicProtocolDetail, "durationOptions">): string | null {
+export function validateField(f: PublicFormField, raw: string, protocol: ValidationContext): string | null {
   const value = f.type === "password" ? raw : raw.trim();
   if (f.type === "duration") {
     return protocol.durationOptions.includes(Number(value)) ? null : "Choose how long the account should last.";
@@ -71,19 +83,21 @@ export function validateField(f: PublicFormField, raw: string, protocol: Pick<Pu
   const max = Math.min(f.validation.maxLength ?? 128, 128);
   if (min !== undefined && value.length < min) return `Use at least ${min} characters.`;
   if (value.length > max) return `Use at most ${max} characters.`;
-  if (f.key === "username" && !USERNAME_CHARS.test(value)) return "Use lowercase letters, digits, _ . or - (no spaces).";
+  if (f.key === "username") {
+    if (usesRemarkNames(protocol)) {
+      if (!REMARK_USERNAME.test(value)) return "Use letters, digits, _ . or - and start with a letter or digit.";
+    } else if (!LINUX_USERNAME.test(value)) {
+      return /^[a-z]/.test(value) ? "Use lowercase letters, digits or _ only." : "Start with a letter (a–z).";
+    }
+  }
   if (f.type === "password" && !PASSWORD_CHARS.test(value)) return "Use letters, digits and @ # % ^ * _ + = . , : ~ - (no spaces or quotes).";
-  if (f.key === "sni_bug" && !HOST_CHARS.test(value)) return "Use a host name such as cdn.example.com.";
+  if (f.key === "sni_bug" && !BUG_HOST.test(value)) return "Enter a host name such as cdn.example.com (no http:// or paths).";
   const re = compilePattern(f.validation.pattern);
   if (re && !re.test(value)) return "This format isn't accepted.";
   return null;
 }
 
-export function validateAll(
-  fields: PublicFormField[],
-  values: Record<string, string>,
-  protocol: Pick<PublicProtocolDetail, "durationOptions">,
-): Record<string, string> {
+export function validateAll(fields: PublicFormField[], values: Record<string, string>, protocol: ValidationContext): Record<string, string> {
   const errors: Record<string, string> = {};
   for (const f of fields) {
     const e = validateField(f, values[f.key] ?? "", protocol);

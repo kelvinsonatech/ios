@@ -24,7 +24,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AboutPage() {
   await connection();
   const [settings, protocols, stats] = await Promise.all([loadSettings(), loadProtocols(), loadStats()]);
-  const avatars = ["north", "delta", "orbit"].map((s) => avatarDataUri(`about:${s}`, settings.avatarStyle));
+  const avatars = ["north", "delta", "orbit"].map((seed) => ({ seed, src: avatarDataUri(`about:${seed}`, settings.avatarStyle) }));
 
   const values = [
     {
@@ -93,8 +93,8 @@ export default async function AboutPage() {
           </div>
           <div className="relative rounded-[2rem] border bg-card p-6 shadow-sm sm:p-8">
             <div className="flex -space-x-3">
-              {avatars.map((src) => (
-                <UserAvatar key={src.slice(-24)} src={src} size={56} className="ring-4 ring-card" />
+              {avatars.map((a) => (
+                <UserAvatar key={a.seed} src={a.src} size={56} className="ring-4 ring-card" />
               ))}
             </div>
             <h3 className="mt-5 text-lg font-semibold">A face for every account</h3>
