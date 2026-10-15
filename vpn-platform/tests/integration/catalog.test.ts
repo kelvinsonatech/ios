@@ -179,8 +179,10 @@ describe("public catalogue", () => {
 
     await setServer(id, { healthStatus: "offline" });
     expect((await card()).availability).toBe("offline");
-    // Offline servers leave the browse pages but stay on the status page and keep their server page.
-    expect(await getCountryPage("vless", "united-kingdom")).toBeNull();
+    // Offline servers leave the browse pages but stay on the status page and keep their server page;
+    // the country page itself stays (empty state) so the URL does not turn into a 404.
+    expect((await getCountryPage("vless", "united-kingdom"))!.servers).toEqual([]);
+    expect((await getProtocolPage("vless"))!.countries.map((c) => c.slug)).not.toContain("united-kingdom");
     const slug = (await card()).slug;
     expect((await getServerPage("vless", "united-kingdom", slug))!.server.availability).toBe("offline");
 

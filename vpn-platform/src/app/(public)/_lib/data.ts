@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
-import type { CountryPageData, ProtocolPageData, PublicProtocolSummary, PublicSiteSettings, SiteStats, StatusPageData } from "@/lib/public/types";
-import { getCountryPage, getProtocolPage, getPublicSiteSettings, getSiteStats, getStatusPage, listProtocolSummaries } from "@/server/public/catalog";
+import { SERVER_SLUG_PATTERN } from "@/lib/slug";
+import type { CountryPageData, ProtocolPageData, PublicProtocolSummary, PublicSiteSettings, ServerPageData, SiteStats, StatusPageData } from "@/lib/public/types";
+import { getCountryPage, getProtocolPage, getPublicSiteSettings, getServerPage, getSiteStats, getStatusPage, listProtocolSummaries } from "@/server/public/catalog";
 import { getSiteSettings } from "@/server/settings/service";
 import { quotaWindow } from "@/server/provisioning/quota";
 import { errorSummary, logger } from "@/server/logging/logger";
@@ -82,6 +83,12 @@ export const loadProtocolPage = cache(async (protocol: string): Promise<Protocol
 export const loadCountryPage = cache(async (protocol: string, country: string): Promise<CountryPageData | null> => {
   if (!SLUG.test(protocol) || !SLUG.test(country)) return null;
   return getCountryPage(protocol, country);
+});
+
+/** Server page data; null for unknown protocol/country/server slugs. */
+export const loadServerPage = cache(async (protocol: string, country: string, server: string): Promise<ServerPageData | null> => {
+  if (!SLUG.test(protocol) || !SLUG.test(country) || !SERVER_SLUG_PATTERN.test(server)) return null;
+  return getServerPage(protocol, country, server);
 });
 
 /** "00:00 & 12:00" */

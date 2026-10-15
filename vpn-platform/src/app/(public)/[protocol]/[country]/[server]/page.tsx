@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { cache } from "react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
@@ -16,21 +15,12 @@ import { Container } from "@/components/public/section";
 import { ConnectTeaser } from "@/components/public/server/connect-teaser";
 import { ServerInfoCard } from "@/components/public/server/server-info-card";
 import { absoluteUrl, pageMetadata, siteOrigin } from "@/lib/seo";
-import { SERVER_SLUG_PATTERN } from "@/lib/slug";
 import { cn } from "@/lib/utils";
 import type { PublicServerCard } from "@/lib/public/types";
-import { getCountryPage, getServerPage } from "@/server/public/catalog";
-import { loadSettings, resetSchedule } from "@/app/(public)/_lib/data";
+import { getCountryPage } from "@/server/public/catalog";
+import { loadServerPage as loadServer, loadSettings, resetSchedule } from "@/app/(public)/_lib/data";
 
 type Params = { protocol: string; country: string; server: string };
-
-const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
-
-/** One catalogue lookup per request (shared by generateMetadata and the page). */
-const loadServer = cache(async (protocol: string, country: string, server: string) => {
-  if (!SLUG.test(protocol) || !SLUG.test(country) || !SERVER_SLUG_PATTERN.test(server)) return null;
-  return getServerPage(protocol, country, server);
-});
 
 /** Other servers of the same protocol and country that can take an account right now. */
 async function availableAlternatives(protocol: string, country: string, exceptId: string): Promise<PublicServerCard[]> {

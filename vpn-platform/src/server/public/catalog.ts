@@ -31,7 +31,8 @@ import { cached } from "./cache";
  *   protocol.enabled AND server_protocol.enabled AND server_protocol.detected AND server published
  *   (lifecycle active|maintenance, not deleted, compatibility <> unsupported).
  * Browse pages list servers whose status is online|full|maintenance; the status page also lists
- * offline ones (and a server page stays reachable while its server is offline, showing why).
+ * offline ones (and a server page stays reachable while its server is offline, showing why; a
+ * country page whose servers are all offline returns servers: [] for its empty state).
  * All functions return null for unknown/disabled slugs (pages call notFound()).
  *
  * Only safe metadata leaves this module: never IP addresses, management API ports or credentials.
@@ -378,8 +379,11 @@ export async function getCountryPage(protocolSlug: string, countrySlugValue: str
     const snap = await snapshot();
     const p = findProtocol(snap, protocolSlug);
     if (!p) return null;
-    const list = cardsFor(snap, p, (r) => isBrowsable(r) && r.server.countryCode.toUpperCase() === code);
-    if (!list.length) return null;
+    const inCountry = (r: Row) => r.server.countryCode.toUpperCase() === code;
+    // A country whose listed servers are all offline keeps its page (empty state, servers: []), so
+    // its server pages stay reachable too; only countries with no listed server at all are unknown.
+    if (!snap.rows.some((r) => r.protocolId === p.id && inCountry(r))) return null;
+    const list = cardsFor(snap, p, (r) => isBrowsable(r) && inCountry(r));
     return { protocol: await detail(snap, p), country: country(code), servers: list };
   });
 }

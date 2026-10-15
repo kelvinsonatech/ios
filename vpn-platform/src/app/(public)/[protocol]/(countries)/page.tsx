@@ -15,7 +15,7 @@ import { Container, EmptyState, SectionHeading } from "@/components/public/secti
 import { categoryLabel } from "@/components/public/nav";
 import { guideFor } from "@/lib/protocol-guides";
 import { absoluteUrl, pageMetadata, siteOrigin } from "@/lib/seo";
-import { loadProtocolPage, loadSettings } from "../_lib/data";
+import { loadProtocolPage, loadSettings } from "@/app/(public)/_lib/data";
 import { CountriesGrid } from "./countries-client";
 
 type Props = { params: Promise<{ protocol: string }> };

@@ -13,7 +13,7 @@ import { Countdown } from "@/components/public/live-time";
 import { Container, EmptyState, SERVER_GRID, SectionHeading } from "@/components/public/section";
 import { ServerCard } from "@/components/public/server-card";
 import { absoluteUrl, pageMetadata, siteOrigin } from "@/lib/seo";
-import { loadCountryPage, loadSettings } from "../../_lib/data";
+import { loadCountryPage, loadSettings } from "@/app/(public)/_lib/data";
 
 type Props = { params: Promise<{ protocol: string; country: string }> };
 
@@ -27,6 +27,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: `Free ${p.name} accounts on ${plural(servers.length, "server")} in ${c.name}, valid for ${formatDays(p.durationOptions)}. Live status, ping and free slots.`,
     path: `${p.href}/${c.slug}`,
     siteName: settings.siteName,
+    // Every server here is offline right now: keep the page (empty state) out of search results.
+    noIndex: servers.length === 0,
   });
 }
 
