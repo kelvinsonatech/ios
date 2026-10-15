@@ -2,7 +2,7 @@
 
 This is the interface the website expects from the **provisioning service on each VPN server**. It is a *contract*, not a description of your existing script: nothing here assumes how your script creates users, which commands it runs or where it keeps files.
 
-Two ways to satisfy it once your script has been analysed (phase 10–11):
+Two ways to satisfy it (the owner's servers use **A**: a node API built from [10-script-api-prompt.md](10-script-api-prompt.md), which also lists the exact `config` keys per protocol):
 
 * **A — Agent on the server:** a small service on each VPS implements these endpoints by calling your script's existing functions. The website keeps using the built-in `contract-v1` driver.
 * **B — Driver on the website:** if your script already exposes an API, a new `NodeDriver` translates the website's predefined operations to that API (`servers.driver` selects it per server). The node keeps its API untouched.
@@ -76,7 +76,7 @@ An error envelope means **the operation did not happen** (atomic): no account wa
     "agent_version": "1.0.0",
     "status": "online",
     "hostname": "sg01.example.com",
-    "public_ip": "123.123.123.123",
+    "public_ip": "203.0.113.10",
     "country": "SG",
     "server_time": "2026-10-13T12:00:00Z",
     "protocols": ["ssh", "ssh-websocket", "ssh-stunnel", "slowdns", "udp-custom", "openvpn", "wireguard", "shadowsocks", "vmess", "vless", "trojan", "noobzvpn"],
@@ -145,7 +145,7 @@ Request (website → node):
 ```
 
 * `protocol` is the identifier the node itself reported during detection.
-* `username` / `password` are present only when the protocol's form asks for them. They are pre-validated by the website (`^[a-z][a-z0-9_]{2,31}$` for system users; passwords `[A-Za-z0-9@#%^*_+=.,:~-]{6,32}`; reserved names like `root` are refused). **The node must still never pass them through a shell.**
+* `username` / `password` are present only when the protocol's form asks for them. They are pre-validated by the website (`^[a-z][a-z0-9_]{2,31}$` for system users and Hysteria/ZIVPN; `^[A-Za-z0-9][A-Za-z0-9_.-]{2,31}$` for VMess/VLESS/Trojan/Shadowsocks account names; passwords `[A-Za-z0-9@#%^*_+=.,:~-]{6,32}`; reserved names like `root` are refused). **The node must still never pass them through a shell.**
 * **Idempotency:** the same `request_id` must return the same account (`"replayed": true`) and never create a second one; a different payload with the same id → `IDEMPOTENCY_CONFLICT`; if the first attempt is still running → `REQUEST_IN_PROGRESS`.
 
 Response `201` (or `200` when replayed):
@@ -173,7 +173,7 @@ Returns the account created for that request id (same shape, including `config`)
 * `DELETE` → `{ "revoked": true }`; unknown/already removed → `404` (treated as success).
 * `renew` body `{ "request_id": "…", "duration_days": 7 }` → `{ "account": … }` with the new `expires_at`.
 
-### `GET /accounts?protocol=&cursor=&limit=` *(optional; used by expiry sync, phase 19)*
+### `GET /accounts?protocol=&cursor=&limit=` *(optional; not called by the website today)*
 
 `{ "accounts": [ … ], "next_cursor": null }`
 
@@ -183,12 +183,15 @@ Body `{ "target": "agent" }` → `202 { "accepted": true }`. A predefined operat
 
 ## Protocol `config` shapes the website understands
 
-The server remains the authoritative source of protocol values; these are the keys the built-in adapters read (unknown keys are ignored, missing ports fall back to `/protocols`). They will be aligned with your script's real output in phase 11.
+The server remains the authoritative source of protocol values; these are the keys the built-in adapters read (unknown keys are ignored, missing ports fall back to `/protocols`). For the owner's protocols they match section 8 of [10-script-api-prompt.md](10-script-api-prompt.md).
 
 | Protocol(s) | `config` keys |
 | --- | --- |
-| SSH, SSH SSL, SSH WebSocket, SlowDNS, UDP Custom | `host`, `ip?`, `username?`, `password?`, `ports: { openssh, dropbear, ssl, ws, ws_tls, udp_custom, slowdns }`, `slowdns: { nameserver, public_key }`, `payload?` |
+| SSH, SSH SSL, SSH WebSocket, SlowDNS, UDP Custom | `host`, `ip?`, `username?`, `password?`, `ports: { openssh, dropbear, ssl, ws, ws_tls, udp_custom, slowdns }`, `sni?`, `slowdns: { nameserver, public_key }`, `payload?` or `payloads?: [{ name, value }]` |
 | VMess / VLESS / Trojan | `host`, `remark?`, `uuid` (VMess/VLESS) or `password` (Trojan), `alter_id?`, `flow?`, `connections: [{ name?, network, security, port, path?, host_header?, sni?, service_name?, uri? }]`, `links?: [{ name, uri }]` |
+| Hysteria 1 | `host`, `ip?`, `port` (number, list or range), `protocol?`, `auth`, `obfs?`, `obfs_password?`, `up_mbps?`, `down_mbps?`, `alpn?`, `sni?`, `insecure?`, `uri?` (`hysteria://`) |
+| Hysteria 2 | `host`, `ip?`, `port`, `password`, `obfs?: { type, password }`, `sni?`, `insecure?`, `pin_sha256?`, `uri?` (`hysteria2://` or `hy2://`) |
+| ZIVPN UDP | `host`, `ip?`, `password`, `ports: { udp }` (e.g. `"6000-19999"`), `obfs?` |
 | Shadowsocks | `host`, `port`, `method`, `password`, `plugin?`, `plugin_opts?`, `uri?` |
 | WireGuard | `config_text?` or `interface: { address, dns?, private_key }` + `peer: { public_key, preshared_key?, endpoint, allowed_ips?, persistent_keepalive? }` |
 | OpenVPN | `host`, `username?`, `password?`, `ports: { tcp, udp, ssl }`, `configs: [{ name, filename, content }]` or `ovpn` |

@@ -23,12 +23,16 @@ The browser never reaches a VPN server; VPN servers never receive anything but p
 * **Response hardening:** JSON only, 1 MiB cap, no redirects, strict Zod schemas, string length limits, control characters rejected, URI scheme allow-list, WireGuard/OpenVPN shape checks. Node text is never rendered as HTML.
 * **Version gate:** unsupported API majors cannot be published or provisioned.
 
-### Public account creation (phases 14–16 expose it)
+### Public site and account creation
+Details: [09-public-site.md § Security notes](09-public-site.md#security-notes).
+* Public listings, the status page and the public API never carry server IPs, management API ports or credentials; the VPN hostname only when the admin enables it (Site settings → Public display).
+* Public POST endpoints (`/api/public/accounts`, `/api/public/reports`): same-origin check, JSON only, body size limits, strict zod schemas.
 * Strict input validation from the protocol definition **plus** non-relaxable adapter guards (safe character sets, reserved usernames such as `root`).
-* Rate limits per client IP (burst + per protocol per day), failing closed if Redis is down; captcha hook planned for phase 16.
-* Idempotency keys; capacity reservation under row locks; maintenance/offline/full enforced in the backend, not only the UI.
-* One-time, TTL-limited, encrypted result retrieval with an unguessable claim token; secrets are not stored afterwards.
-* Client IPs stored only as keyed hashes.
+* Rate limits per client IP (burst + per protocol per day for accounts, per hour and day for reports), failing closed if Redis is down; Cloudflare Turnstile (`CAPTCHA_PROVIDER=turnstile`) verified server side and failing closed.
+* Idempotency keys; capacity and creation-quota reservation under row locks; maintenance/offline/full/quota enforced in the backend, not only the UI.
+* TTL-limited, encrypted result retrieval with an unguessable claim token; secrets are erased afterwards and never logged.
+* Client IPs stored only as keyed hashes. Admin-entered and node-provided text rendered as text; links from settings limited to site paths and `https://` URLs.
+* DiceBear avatars generated on the server; the site loads no third-party asset (Turnstile is the only exception, and only when enabled).
 
 ### Admin panel
 * Argon2id password hashing; password policy (12+ chars, 3 classes).

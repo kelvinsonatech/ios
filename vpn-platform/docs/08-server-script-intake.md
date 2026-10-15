@@ -1,5 +1,7 @@
 # 8. Request: your existing server script
 
+> **Status: resolved.** The owner built a node API on top of their script from [10-script-api-prompt.md](10-script-api-prompt.md); SSH, SSH SSL and SlowDNS pass every check against it (see the [roadmap](07-roadmap.md), phases 10–12). This page is kept as the record of the original request.
+
 Phases 1–9 are complete. Per the PRD, **real provisioning stops here until I have seen your script**. Nothing in this repository guesses commands, paths or output formats of your infrastructure — the website talks to servers only through the [contract](04-node-api-contract.md), and the mock node is a test simulator, not an agent.
 
 ## Please provide

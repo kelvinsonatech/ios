@@ -3,7 +3,8 @@
 **How to use this file:** open the AI tool you used to build your VPN install script. Give it your
 script files (all of them: the installer, menu, add/delete/renew helpers, cron jobs, config
 templates), then paste everything below the line as your message. When it is done, run the tests in
-section 10 on a test VPS, and only then add the server in the website's admin panel (section 11).
+section 10 and the ready-made checkers in section 12 on a test VPS, and only then add the server in
+the website's admin panel (section 11).
 
 The website side is already built and expects exactly this API, so follow the formats literally:
 field names, headers, status codes and error codes. `mock-node/mock-node.ts` in this repository is
@@ -200,12 +201,18 @@ The agent expires accounts itself, with a systemd timer that runs every minute a
 "delete or expire" steps above for each protocol. Report `"expiry_managed_by_node": true` in `/info`.
 Replace any old expiry cron job from my script that restarted services.
 
+If the agent does not expire accounts itself, report `"expiry_managed_by_node": false`: the website
+then marks each account expired at its `expires_at` and sends `DELETE /api/v1/accounts/{account_id}`
+for it within about a minute (failures are retried with backoff for several hours). The delete must
+use the same live, no-restart method as above.
+
 ## 3. Transport
 
 - Base URL: `https://<server-hostname>:<port>/api/v1`
 - Requests and responses are JSON (`Content-Type: application/json`). Reject request bodies larger
   than 64 KB.
-- No redirects. Reply within 30 seconds; the website waits up to 45 seconds for account creation.
+- No redirects. The website waits up to **15 seconds** for every request except account creation and
+  renewal, which may take up to **45 seconds**. Answer faster than that.
 
 ## 4. Authentication (HMAC-SHA256), required on every endpoint
 
@@ -368,8 +375,18 @@ Request from the website:
   - `hysteria`, `hysteria2`, `zivpn`: `username` (account name) and optionally `password`. If no
     password is sent, generate a strong one (or take one from the ZIVPN pool) and return it in
     `config.password`.
+- `options` carries extra form fields. For `vmess`, `vless` and `trojan` the website sends the
+  transport the user picked: `{"transport": "ws"}` or `{"transport": "grpc"}`; for the other
+  built-in protocols it sends `{}`. Return at least the `connections` entry for that transport
+  (returning all of them is fine) and ignore option keys you do not use instead of failing. When
+  `GET /protocols` lists `transports` for the protocol, the website never sends a transport outside
+  that list. The SNI / bug-host choices in the form only change the links on the website and are
+  never sent.
 - **Validate again on the server:**
-  - username: `^[a-z][a-z0-9_]{2,31}$`; refuse system names such as `root`, `admin`, `daemon`, `bin`,
+  - username: `^[a-z][a-z0-9_]{2,31}$` for every protocol except `vmess`, `vless` and `trojan`. For
+    those three the username is only the account name (remark / Xray `email` label, never a Linux
+    user) and the website also allows upper case, `.`, `-` and a leading digit:
+    `^[A-Za-z0-9][A-Za-z0-9_.-]{2,31}$`. Refuse system names such as `root`, `admin`, `daemon`, `bin`,
     `sys`, `nobody`, `sshd`, `www-data`, `ubuntu`, `debian`, and any existing Linux user that was not
     created by the agent;
   - password: `^[A-Za-z0-9@#%^*_+=.,:~-]{6,32}$`;
@@ -482,8 +499,9 @@ Use the payload template(s) my script already shows to users. If there are sever
 ```
 
 Include one entry in `connections` per transport (inbound tag) the account was added to. If my
-script already builds share links (`vmess://`, `vless://`, `trojan://`), put them in `links`; the
-website shows them with QR codes.
+script already builds share links (`vmess://`, `vless://`, `trojan://`), put them in `links` (or as
+`uri` inside the matching `connections` entry); the website shows them with QR codes. Without links
+the website builds standard share links from the `connections` values.
 
 **`hysteria`: Hysteria 1:**
 
@@ -508,7 +526,8 @@ optional. Leave out what my server does not use.
 
 `uri` follows the official Hysteria 2 URI scheme. URL-encode the password. Include
 `obfs`/`obfs-password` only when obfuscation is enabled, and `pinSHA256` (lowercase hex) only when
-certificate pinning is used.
+certificate pinning is used; in that case also return it as `"pin_sha256"` in `config` so the website
+can show it.
 
 **`zivpn`: ZIVPN UDP:**
 
@@ -601,15 +620,80 @@ Deliver:
 
 In the website's admin panel go to **Servers → Add server** and enter:
 
-- **Hostname:** the server's domain.
-- **IP address:** the server's public IP.
+- **Public hostname:** the server's domain.
+- **Server IP:** the server's public IP.
+- **URL name** (optional): the server's part of the page address, for example `de1` in
+  `/ssh/germany/de1`. Left empty, the website picks the next free one for the country.
 - **Management API port:** for example `9443`.
 - **API base path:** `/api/v1`.
-- **Authentication:** "HMAC-signed requests", with the **Key ID** and **API secret** the installer
-  printed.
-- **TLS:** "HTTPS — public certificate" if the server uses a real certificate (for example Let's
-  Encrypt). Otherwise "HTTPS — pinned certificate fingerprint", with the SHA-256 fingerprint the
+- **Authentication method:** "HMAC-signed requests", with the **Key ID** and **API secret** the
   installer printed.
+- **TLS verification:** "HTTPS — public certificate" if the server uses a real certificate (for
+  example Let's Encrypt). Otherwise "HTTPS — pinned certificate fingerprint", with the SHA-256
+  fingerprint the installer printed.
 
-Then click **Connect**, review the detected protocols and **Publish**. The server appears on the
-public pages automatically.
+Then click **Connect server**, review the detected protocols (and their account caps and creation
+quotas) and click **Publish server**. The server appears on the public pages automatically.
+
+## 12. Testing your API
+
+Two ready-made checkers in this repository test a node API against exactly what the website
+expects. Run both before adding a server, and again after every change to the agent. They create
+short-lived test accounts (1 day, usernames starting with `chk`) and delete them again.
+
+### On the VPS: `scripts/node-selftest.py`
+
+Copy `scripts/node-selftest.py` to the VPS (Python 3 standard library only, nothing to install) and
+run it as root:
+
+```bash
+python3 node-selftest.py --url https://de1.example.com:9443/api/v1 --fingerprint <sha256 hex>
+python3 node-selftest.py --url https://de1.example.com:9443/api/v1 --protocols ssh,ssh-ssl,slowdns
+```
+
+- `--fingerprint` is the SHA-256 fingerprint of a self-signed API certificate (colons allowed); the
+  script refuses to send anything if the certificate does not match. Leave it out for a public
+  certificate.
+- `--protocols` limits the account tests; by default every protocol `/info` reports is tested. A
+  protocol whose service is stopped fails its account test.
+- The key id and secret are read from `/etc/vpn-node-api/config.json` (or the `VPN_NODE_KEY_ID` and
+  `VPN_NODE_SECRET` environment variables) and are never printed. Passwords, UUIDs, keys and share
+  links in the output are masked.
+
+It checks: unsigned, wrong-secret, 10-minute-old and replayed requests are refused; `/info`,
+`/health` and `/protocols` have the expected fields; the usernames `root` and `a; reboot` are refused
+with `VALIDATION_FAILED`; per protocol: create, retry with the same request id (same account,
+`replayed: true`), the same request id with other details (`IDEMPOTENCY_CONFLICT`), lookup by request
+id, the `config` keys from section 8, known share-link schemes, delete, and a second delete (404).
+Finally it compares the start times of the VPN services (sshd, dropbear, stunnel, xray, hysteria,
+zivpn, dnstt ...) from before and after the run: **no service may have restarted**. It ends with
+`N/M checks passed`.
+
+### From the website side: `npm run node:check`
+
+Run it in the website's project folder (`vpn-platform/`, after `npm ci`) on a machine the server's
+firewall lets through to the API port, normally the website server itself:
+
+```bash
+read -rs VPN_NODE_SECRET && export VPN_NODE_SECRET     # paste the secret, press Enter (not echoed)
+npm run node:check -- --url https://de1.example.com:9443/api/v1 --key-id <key id>
+npm run node:check -- --url https://de1.example.com:9443/api/v1 --key-id <key id> --create all
+unset VPN_NODE_SECRET
+```
+
+- The secret is accepted **only** through the `VPN_NODE_SECRET` environment variable. Never put it on
+  the command line, in a file in the repository, in a ticket or in a chat message.
+- Without `--create` it only checks signing, replay protection and `/info`, `/health`, `/protocols`
+  against the website's own contract schemas, the API version (1.x), the server clock (within 60 s)
+  and which website protocol each reported id maps to.
+- `--create all` (or `--create ssh,vless`) also runs the account tests and parses every test account
+  with the website's real protocol adapter, printing the fields and links a user would see (secret
+  values masked). `--keep` keeps the test accounts instead of deleting them.
+- It verifies the certificate against the public certificate authorities and has no fingerprint
+  option: for a self-signed certificate use the on-VPS self-test with `--fingerprint`, then
+  **Test connection** in the admin panel (which uses the pinned fingerprint).
+- The exit code is non-zero when a check fails. It honours `HTTPS_PROXY` / `NO_PROXY`.
+
+Both checkers send `"options": {}`. The `transport` option that the website sends for VMess, VLESS
+and Trojan (section 7) is therefore only exercised by creating one real account per transport from
+the website's server page.

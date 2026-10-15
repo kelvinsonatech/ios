@@ -2,9 +2,14 @@
 
 A website + admin panel that turns servers prepared with **your existing installation script** into publicly available SSH / V2Ray / WireGuard / OpenVPN / … account generators — with no code change per server.
 
-> **Status:** the admin panel, the public site (protocol → country → server → create account, server status, reports, my accounts, legal pages) and the provisioning pipeline are implemented and tested against the owner's node API (see [docs/10-script-api-prompt.md](docs/10-script-api-prompt.md); SSH, SSH SSL and SlowDNS verified on the owner's server; `npm run node:check` checks a real node end to end). Every VPN account and admin gets a locally generated DiceBear avatar. Roadmap: [docs/07-roadmap.md](docs/07-roadmap.md). The brand name comes from the admin site settings (default "Vaultline").
+> **Status:** the admin panel, the public site (protocol → country → server → create account, server status, reports, my accounts, legal pages) and the provisioning pipeline are implemented and tested against the owner's node API (see [docs/10-script-api-prompt.md](docs/10-script-api-prompt.md); SSH, SSH SSL and SlowDNS verified on the owner's server; VMess, VLESS, Trojan, Hysteria 1/2 and ZIVPN still need a run against it; `npm run node:check` checks a real node end to end). Every VPN account and admin gets a locally generated DiceBear avatar. Roadmap: [docs/07-roadmap.md](docs/07-roadmap.md). The brand name comes from the admin site settings (default "Vaultline").
 
-Design documents: [docs/](docs/README.md).
+Design documents: [docs/](docs/README.md). Start with:
+
+* [Public site, quotas, monitoring & avatars](docs/09-public-site.md): pages, account creation and the one-time result, creation quotas, health monitor, expiry, DiceBear avatars, captcha, site settings, reports.
+* [Admin panel](docs/03-admin-panel.md) and [system architecture](docs/01-architecture.md).
+* [Node API prompt](docs/10-script-api-prompt.md) for the API on each VPN server; section 12 explains how to test a server (`scripts/node-selftest.py` on the VPS, `npm run node:check` from here).
+* [Roadmap & status](docs/07-roadmap.md): what is done and what is left.
 
 ## Quick start (local development)
 
@@ -59,6 +64,7 @@ ADMIN_PASSWORD='choose-a-long-password' npm run admin:create -- --email admin@ex
 | `npm run admin:create -- --email … --role super_admin` | Create an admin or reset a password (`ADMIN_PASSWORD` env or hidden prompt) |
 | `npm run mock-node` | Development node simulator |
 | `npm run demo:nodes` / `demo:seed` | Demo fleet of mock nodes / idempotent demo data (development only, see *Demo data*) |
+| `npm run node:check -- --url … --key-id …` | Check a real server's node API end to end; secret only via `VPN_NODE_SECRET` (see [docs/10 § 12](docs/10-script-api-prompt.md#12-testing-your-api)) |
 | `npm run typecheck` / `lint` | TypeScript / ESLint |
 | `npm test` (`test:unit`, `test:integration`) | Vitest; integration needs PostgreSQL + Redis (`TEST_DATABASE_URL`, default `…/vaultline_test`; `TEST_REDIS_URL`, default Redis DB 15). The test database is wiped. |
 

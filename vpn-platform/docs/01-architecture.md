@@ -5,7 +5,7 @@
 1. **Adding a server needs no code change.** A prepared VPS is registered in the admin panel; the website connects, verifies the provisioning service, detects protocols and publishes the server on every matching protocol page.
 2. **The browser never talks to a VPN server.** Every request goes *Frontend → Website backend → Provisioning layer → Node driver → VPN server*.
 3. **No arbitrary commands.** The website only knows a fixed set of predefined operations (get info, health, protocols, stats, create/get/find/revoke/renew account, restart agent).
-4. **The existing server script stays authoritative.** The website does not invent how accounts are created on the server. It defines a clean interface; the real script is plugged in behind it (phase 10–11).
+4. **The existing server script stays authoritative.** The website does not invent how accounts are created on the server. It defines a clean interface; the owner's node API implements it on top of the script ([10-script-api-prompt.md](10-script-api-prompt.md)).
 
 ## Components
 
@@ -52,10 +52,10 @@ flowchart LR
 | **Web app** | Public site, admin panel, JSON API. Validates input, authorises, writes the database, enqueues jobs. | `src/app`, `src/proxy.ts` |
 | **Domain services** | Server management, capability detection, protocol registry, public catalogue, admin auth, audit. | `src/server/{servers,protocols,auth,admins,…}` |
 | **Provisioning layer** | The only code that talks to VPN servers. Lifecycle orchestration, protocol adapters, node drivers and the transport. | `src/server/provisioning`, `src/server/nodes` |
-| **Worker** | Executes provisioning jobs off the request path, reconciles uncertain outcomes, sweeps stranded requests and expired one-time results. Phase 18/19 add health monitoring and expiry sync here. | `src/worker` |
+| **Worker** | Executes provisioning jobs off the request path, reconciles uncertain outcomes, sweeps stranded requests and expired one-time results, runs the health monitor and account expiry ([09-public-site.md](09-public-site.md#background-jobs)). | `src/worker` |
 | **PostgreSQL** | Source of truth (servers, protocols, accounts, requests, logs). | `src/server/db/schema.ts`, `drizzle/` |
 | **Redis** | Job queue (BullMQ), rate limiting. Losing Redis never loses state: the sweeper re-enqueues from the database. | `src/server/redis.ts`, `provisioning/queue.ts` |
-| **VPN node** | Your installation script plus a small provisioning service that exposes predefined operations over HTTPS. | out of repo (phase 11); dev simulator in `mock-node/` |
+| **VPN node** | Your installation script plus a small provisioning service that exposes predefined operations over HTTPS. | out of repo (the owner's node API); dev simulator in `mock-node/`, demo fleet in `scripts/demo-nodes.ts` |
 
 ## Key flows
 
@@ -83,7 +83,7 @@ sequenceDiagram
 
 `Sync` re-runs detection. Newly reported protocols on a published server are stored as **detected but disabled** ("Available") until an admin enables them; protocols the server stops reporting become undetected and immediately disappear from public pages (the admin's switch is remembered for when they return).
 
-### Account creation (phase 16 wires the public form to this)
+### Account creation (public form → `POST /api/public/accounts`)
 
 ```mermaid
 sequenceDiagram
@@ -111,7 +111,7 @@ sequenceDiagram
     Note over W,Node: found → success; not found → resend with same id
   end
   User->>API: poll status (claimToken)
-  API-->>User: config (decrypted once, TTL-limited)
+  API-->>User: config (decrypted per request, until PROVISION_RESULT_TTL_SECONDS)
 ```
 
 ## Technology
@@ -148,27 +148,28 @@ vpn-platform/
 ├── drizzle/                    SQL migrations (generated, committed)
 ├── deploy/Caddyfile            Reverse proxy / TLS
 ├── mock-node/                  Development & test simulator of the node API (NOT the real agent)
-├── scripts/                    migrate, seed, create-admin (bundled to dist/ for Docker)
+├── scripts/                    migrate, seed, create-admin (bundled to dist/ for Docker); node-check, node-selftest.py, demo fleet
 ├── src/
 │   ├── proxy.ts                CSP nonce + optimistic admin redirect (Next 16 "proxy")
 │   ├── app/
-│   │   ├── page.tsx            Public home (phase 14 adds protocol pages)
-│   │   ├── api/public/…        Read-only public catalogue (auto-publishing)
+│   │   ├── (public)/…          Public site: home, [protocol]/[country]/[server], server-status, report, my-accounts, legal pages
+│   │   ├── api/public/…        Public catalogue (read-only), account creation + polling, reports
 │   │   ├── api/health          Liveness/readiness
 │   │   └── admin/
 │   │       ├── login/…         Password + MFA
-│   │       └── (panel)/…       Dashboard, servers, protocols, accounts, logs, admins, account
-│   ├── components/             UI kit (ui/), admin widgets, theme
+│   │       └── (panel)/…       Dashboard, servers, protocols, accounts, reports, logs, admins, settings, account
+│   ├── components/             UI kit (ui/), admin widgets, public site (public/), theme, avatar
 │   ├── hooks/, lib/            Client-safe helpers (no server imports)
 │   ├── server/                 Server-only domain code
 │   │   ├── db/                 Drizzle schema + client
 │   │   ├── auth/               Passwords, sessions, MFA, RBAC, rate limiting, guards
-│   │   ├── admins/, accounts/, logs/, dashboard/
-│   │   ├── servers/            Server CRUD, lifecycle, status model, connect/sync/detection
-│   │   ├── protocols/          Registry, validation, identifiers, catalogue, seed data
+│   │   ├── admins/, accounts/, logs/, dashboard/, settings/, reports/
+│   │   ├── public/             Public catalogue (snapshot query, cache) and JSON API helpers
+│   │   ├── servers/            Server CRUD, lifecycle, status model, connect/sync/detection, health monitor
+│   │   ├── protocols/          Registry, validation (reserved slugs), identifiers, seed data
 │   │   ├── nodes/              Node API contract, signing, transport, drivers, compatibility
-│   │   ├── provisioning/       Service (lifecycle), adapters, input, presentation, capacity, queue
-│   │   ├── crypto/, logging/, audit.ts, env.ts, redis.ts
+│   │   ├── provisioning/       Service (lifecycle), adapters, input, presentation, capacity, quota, expiry, queue
+│   │   ├── crypto/, logging/, audit.ts, avatar.ts, captcha.ts, env.ts, redis.ts
 │   └── worker/                 Worker entry point
 └── tests/                      unit/ and integration/ (Vitest)
 ```

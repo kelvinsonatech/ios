@@ -62,7 +62,7 @@ function present(slug: string, config: Record<string, unknown>, i = input(), por
   return { p, shown, field, metadata: safeMetadata(c.protocol, p) };
 }
 
-const REAL_PAYLOAD = "GET / HTTP/1.1[crlf]Host: tests.clemsrek.com[crlf]Upgrade: websocket[crlf][crlf]";
+const REAL_PAYLOAD = "GET / HTTP/1.1[crlf]Host: node1.example.com[crlf]Upgrade: websocket[crlf][crlf]";
 
 describe("owner's protocol ids", () => {
   it("every id his script reports maps to a seeded protocol", () => {
@@ -80,15 +80,15 @@ describe("owner's protocol ids", () => {
 describe("SSH family (real outputs)", () => {
   it("ssh shows ports and the payload as copyable multiline text", () => {
     const { field, metadata } = present("ssh", {
-      host: "tests.clemsrek.com",
-      ip: "192.53.121.138",
+      host: "node1.example.com",
+      ip: "203.0.113.10",
       username: "chk82ed70",
       password: "x",
       ports: { openssh: [22], dropbear: [109, 143], ws: [80], ws_tls: [443] },
       payload: REAL_PAYLOAD,
     });
-    expect(field("host")?.value).toBe("tests.clemsrek.com");
-    expect(field("ip")?.value).toBe("192.53.121.138");
+    expect(field("host")?.value).toBe("node1.example.com");
+    expect(field("ip")?.value).toBe("203.0.113.10");
     expect(field("username")?.value).toBe("chk82ed70");
     expect(field("password")).toMatchObject({ value: "x", sensitive: true });
     expect(field("openssh_ports")?.value).toBe("22");
@@ -101,32 +101,32 @@ describe("SSH family (real outputs)", () => {
 
   it("ssh-ssl shows SSL ports, SNI and payload", () => {
     const { field, shown } = present("ssh-ssl", {
-      host: "tests.clemsrek.com",
-      ip: "192.53.121.138",
+      host: "node1.example.com",
+      ip: "203.0.113.10",
       username: "chk82ed70",
       password: "x",
       ports: { ssl: [443, 447], ws_tls: [443] },
-      sni: "tests.clemsrek.com",
+      sni: "node1.example.com",
       payload: REAL_PAYLOAD,
     });
     expect(field("ssl_ports")?.value).toBe("443, 447");
     expect(field("ws_tls_ports")?.value).toBe("443");
-    expect(field("sni")?.value).toBe("tests.clemsrek.com");
+    expect(field("sni")?.value).toBe("node1.example.com");
     expect(field("payload")?.value).toBe(REAL_PAYLOAD);
     expect(shown.fields.map((f) => f.key)).not.toContain("dropbear_ports");
   });
 
   it("slowdns shows nameserver, public key and both ports", () => {
     const { field } = present("slowdns", {
-      host: "tests.clemsrek.com",
-      ip: "192.53.121.138",
+      host: "node1.example.com",
+      ip: "203.0.113.10",
       username: "chk82ed70",
       password: "x",
       ports: { slowdns: [53], openssh: [22] },
-      slowdns: { nameserver: "von.clemsrek.com", public_key: "3d63a5351f4839419726dfaeb0168331e7a06bfcdd94e99dd6b7a02dcf428a73" },
+      slowdns: { nameserver: "dns.example.com", public_key: "9f2c4be1a07d3e58c6b19a4d2f7e0c835b6a1d94e2f70c3b8a5d16e4f09b27c1" },
     });
-    expect(field("slowdns_nameserver")?.value).toBe("von.clemsrek.com");
-    expect(field("slowdns_public_key")?.value).toBe("3d63a5351f4839419726dfaeb0168331e7a06bfcdd94e99dd6b7a02dcf428a73");
+    expect(field("slowdns_nameserver")?.value).toBe("dns.example.com");
+    expect(field("slowdns_public_key")?.value).toBe("9f2c4be1a07d3e58c6b19a4d2f7e0c835b6a1d94e2f70c3b8a5d16e4f09b27c1");
     expect(field("slowdns_ports")?.value).toBe("53");
     expect(field("openssh_ports")?.value).toBe("22");
   });

@@ -23,7 +23,7 @@ interface NodeDriver {
 }
 ```
 
-There is intentionally **no generic "execute" method**. Drivers are registered in `src/server/nodes/drivers/index.ts` and selected per server (`servers.driver`). Today: `contract-v1` (see [04-node-api-contract.md](04-node-api-contract.md)). Phase 11 adds or adapts a driver for your real script.
+There is intentionally **no generic "execute" method**. Drivers are registered in `src/server/nodes/drivers/index.ts` and selected per server (`servers.driver`). Today: `contract-v1` (see [04-node-api-contract.md](04-node-api-contract.md)), which the owner's node API implements, so no script-specific driver is needed.
 
 ### ProtocolAdapter (`src/server/provisioning/types.ts`)
 
@@ -42,18 +42,20 @@ interface ProtocolAdapter {
 | Adapter key | Protocols | Output |
 | --- | --- | --- |
 | `ssh`, `ssh-ssl`, `ssh-websocket`, `slowdns`, `udp-custom` | SSH family (one system account, different emphasis) | Host, IP, username, password, OpenSSH/Dropbear/SSL/WS/WS-TLS/UDP/SlowDNS ports, SlowDNS NS + key, WS payload, UDP Custom string |
-| `vmess`, `vless`, `trojan` | Xray/V2Ray | Domain, UUID/password, alter id, flow, TLS/non-TLS ports, network, path, gRPC service, SNI, **share links + QR** |
+| `vmess`, `vless`, `trojan` | Xray/V2Ray | Domain, UUID/password, alter id, flow, TLS/non-TLS ports, network, path, gRPC service, SNI, optional bug host (links only), **share links + QR** |
+| `hysteria`, `hysteria2` | Hysteria 1 / Hysteria 2 | Server, port (or range), auth string / password, obfuscation, SNI, ALPN, bandwidth (Hysteria 1), certificate pin (Hysteria 2), **hysteria:// / hysteria2:// link + QR** |
+| `zivpn` | ZIVPN UDP | Server, password, UDP port range, obfuscation |
 | `shadowsocks` | Shadowsocks | Server, port, method, password, plugin, **ss:// link + QR** |
 | `wireguard` | WireGuard | Address, DNS, server public key, client private key, PSK, endpoint, allowed IPs, keepalive, **.conf download + QR** |
 | `openvpn` | OpenVPN | Host, username, password, ports, **.ovpn downloads** |
 | `noobzvpn` | NoobzVPN | Host, username, password, TCP/SSL ports |
 | `generic` | Future protocols | Admin-defined output fields mapped by dot-path into the node's `config` |
 
-Every value from the node is validated (type, length, control characters, URI scheme, key format) and classified **sensitive** or not. Sensitive values are delivered once and never stored; admins can mark more values sensitive but never fewer.
+Every value from the node is validated (type, length, control characters, URI scheme, key format) and classified **sensitive** or not. Sensitive values are only part of the encrypted one-time result and never stored in plain form; admins can mark more values sensitive but never fewer.
 
 ### Dynamic forms
 
-`protocol_fields` define the form (text/password/select/number/duration, required, placeholder, help, pattern/min/max, options, default). `buildInputSchema()` turns that into a strict Zod schema (unknown keys rejected), then applies the adapter's guards. The same definition will render the public form (phase 14); the admin editor already shows a live preview.
+`protocol_fields` define the form (text/password/select/number/duration, required, placeholder, help, pattern/min/max, options, default). `buildInputSchema()` turns that into a strict Zod schema (unknown keys rejected), then applies the adapter's guards. The same definition renders the public form on `/<protocol>/<country>/<server>` and the live preview in the admin editor.
 
 ## Adding a new protocol ("Protocol X")
 
@@ -85,8 +87,8 @@ Steps of `requestAccount()` (synchronous part, `src/server/provisioning/service.
 1. Validate idempotency key format; load protocol definition (must be enabled).
 2. **Validate input** (definition + adapter guards).
 3. **Idempotency:** same key → return the original request (same claim token). Same key + different details → `IDEMPOTENCY_CONFLICT`.
-4. **Rate limit** per client IP: 5/min burst and `max_accounts_per_ip_per_day` per protocol (Redis, fails closed).
-5. **Transaction with row locks:** server exists, published, not maintenance/offline/unsupported; protocol enabled + detected + not stopped on that server; **reserve capacity** on server and protocol; insert pending account and request (input encrypted, claim token hashed). A unique-key race (double click) falls back to step 3.
+4. **Rate limit** per client IP: 5/min burst and `max_accounts_per_ip_per_day` per protocol (Redis, fails closed). The public API has already checked origin, size, schema and captcha ([09-public-site.md](09-public-site.md#account-creation--one-time-result)).
+5. **Transaction with row locks:** server exists, published, not maintenance/offline/unsupported; protocol enabled + detected + not stopped on that server; **reserve capacity** on server and protocol and the **creation quota** of the current reset window; insert pending account and request (input encrypted, claim token hashed). A unique-key race (double click) falls back to step 3.
 6. Log `account.requested`; **enqueue** `create`. Return `{ requestId, claimToken }`.
 
 Worker (`executeCreate`):
@@ -95,7 +97,7 @@ Worker (`executeCreate`):
 8. Decrypt input → `adapter.buildSpec` → `driver.createAccount(spec, requestId)` with `Idempotency-Key`.
 9. **Validate response** with the adapter; compute safe metadata and the presented result.
 10. Transaction: account `active` (remote id, expiry, safe metadata); request `succeeded`, input erased, **encrypted result** stored with TTL (`PROVISION_RESULT_TTL_SECONDS`).
-11. On failure: account `failed`, friendly message for the user, safe error in logs, slot released.
+11. On failure: account `failed`, friendly message for the user, safe error in logs, slot released and the quota slot given back (only for a definite failure).
 
 Retrieval: `getRequestStatus(requestId, claimToken)` → `pending` | `failed {code, message}` | `active {account}`; a wrong token returns nothing.
 
@@ -118,9 +120,9 @@ Rules: errors before the request could reach the node retry with exponential bac
 * erases expired one-time results,
 * purges expired admin sessions.
 
-## Phase 11 checklist (with your script)
+## Phase 11 checklist (done with the owner's node API)
 
-* Map each predefined operation to the script's real behaviour (or write the agent implementing the contract).
-* Align adapter `config` parsing with the script's actual output; adjust default protocol identifiers.
-* Decide expiry ownership (`expiry_managed_by_node`) → phase 19 synchronisation strategy.
-* Confirm idempotency/lookup support; if the script cannot provide them, the agent must store request ids itself.
+* Predefined operations: implemented by the owner's node API on top of the script ([10-script-api-prompt.md](10-script-api-prompt.md)).
+* Adapter `config` parsing: aligned with section 8 of that prompt; protocol ids `ssh`, `ssh-ssl`, `slowdns`, `vmess`, `vless`, `trojan`, `hysteria`, `hysteria2`, `zivpn` match the built-in protocols.
+* Expiry ownership: the nodes report `expiry_managed_by_node=false`, so the worker's expiry job removes expired accounts with `DELETE /accounts/{id}` ([09-public-site.md](09-public-site.md#account-expiry)).
+* Idempotency and lookup by request id: provided by the node API and checked by `scripts/node-selftest.py` and `npm run node:check`.
