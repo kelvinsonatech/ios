@@ -107,12 +107,15 @@ function Segmented({
   disabled?: boolean;
   invalid?: boolean;
 }) {
+  // Up to four choices share one row even on 360 px phones; longer lists wrap.
+  const columns = options.length <= 4 ? `repeat(${options.length}, minmax(0, 1fr))` : undefined;
   return (
     <div
       className={cn(
         "grid grid-cols-[repeat(auto-fit,minmax(5rem,1fr))] gap-1 rounded-xl border bg-muted/60 p-1",
         invalid && "border-destructive",
       )}
+      style={columns ? { gridTemplateColumns: columns } : undefined}
     >
       {options.map((o) => (
         <label key={o.value} className={cn("relative", disabled && "cursor-not-allowed opacity-60")}>
@@ -125,7 +128,7 @@ function Segmented({
             disabled={disabled}
             className="peer sr-only"
           />
-          <span className="flex min-h-10 cursor-pointer flex-col items-center justify-center rounded-lg px-2 py-1.5 text-center text-sm font-medium text-muted-foreground transition-[background-color,color,box-shadow] peer-checked:bg-card peer-checked:text-foreground peer-checked:shadow-sm peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50 hover:text-foreground motion-reduce:transition-none">
+          <span className="flex min-h-10 cursor-pointer flex-col items-center justify-center rounded-lg px-1 py-1.5 text-center text-[13px] font-medium whitespace-nowrap sm:px-2 sm:text-sm text-muted-foreground transition-[background-color,color,box-shadow] peer-checked:bg-card peer-checked:text-foreground peer-checked:shadow-sm peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50 hover:text-foreground motion-reduce:transition-none">
             <span className="tabular-nums">{o.label}</span>
             {o.hint ? <span className="text-[11px] font-normal text-muted-foreground">{o.hint}</span> : null}
           </span>

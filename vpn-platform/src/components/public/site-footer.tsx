@@ -40,6 +40,7 @@ export function SiteFooter({
   const email = mailtoHref(settings.contact.email);
   const telegram = safeHref(settings.contact.telegramUrl);
   const showStats = settings.display.showStats && stats !== null;
+  const protocolStats = stats ? statsRows(stats.byProtocol, protocols) : [];
   const year = new Date().getFullYear();
 
   return (
@@ -126,9 +127,9 @@ export function SiteFooter({
               <StatTile label="Accounts created" value={fmt.format(stats.accountsTotal)} />
               <StatTile label="Created today" value={`+${fmt.format(stats.accountsToday)}`} accent />
             </dl>
-            {stats.byProtocol.length > 0 ? (
+            {protocolStats.length > 0 ? (
               <ul className="mt-3 divide-y divide-footer-border rounded-xl bg-white/[0.03] px-3 ring-1 ring-white/10">
-                {stats.byProtocol.map((p) => (
+                {protocolStats.map((p) => (
                   <li key={p.slug} className="flex items-center justify-between gap-3 py-2 text-sm">
                     <span className="truncate text-footer-muted">{p.name}</span>
                     <span className="flex items-baseline gap-2 tabular-nums">
@@ -183,6 +184,21 @@ export function SiteFooter({
       </div>
     </footer>
   );
+}
+
+/**
+ * Per-protocol counters for the services listed in the menu, in menu order; protocols that are no
+ * longer listed (retired or without servers) are folded into one "Other services" row so the totals
+ * still add up. With no menu (catalogue unavailable) every row is shown.
+ */
+function statsRows(rows: SiteStats["byProtocol"], protocols: NavProtocol[]): SiteStats["byProtocol"] {
+  if (protocols.length === 0) return rows;
+  const bySlug = new Map(rows.map((r) => [r.slug, r]));
+  const listed = protocols.map((p) => bySlug.get(p.slug) ?? { slug: p.slug, name: p.name, total: 0, today: 0 });
+  const rest = rows.filter((r) => !protocols.some((p) => p.slug === r.slug));
+  const total = rest.reduce((n, r) => n + r.total, 0);
+  const today = rest.reduce((n, r) => n + r.today, 0);
+  return total + today > 0 ? [...listed, { slug: "_other", name: "Other services", total, today }] : listed;
 }
 
 const footerLink =

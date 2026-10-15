@@ -27,6 +27,8 @@ export default async function ContactPage() {
   const settings = await loadSettings();
   const email = mailtoHref(settings.contact.email);
   const telegram = safeHref(settings.contact.telegramUrl);
+  // Report form + email + Telegram, or report form + "questions" fallback when neither is set.
+  const channels = email && telegram ? 3 : 2;
 
   const selfHelp = [
     { href: "/server-status", icon: <ActivityIcon />, title: "Server status", text: "Live status, ping and free slots of every server." },
@@ -50,8 +52,8 @@ export default async function ContactPage() {
         <HeroChip icon={<FlagIcon />}>Server problems: use the report form</HeroChip>
       </PageHeader>
 
-      <Container className="pt-4">
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+      <Container className={cn("pt-4", channels === 2 && "max-w-4xl")}>
+        <div className={cn("grid gap-5 md:grid-cols-2", channels === 3 && "lg:grid-cols-3")}>
           <ContactCard
             icon={<FlagIcon />}
             title="Report a problem"
