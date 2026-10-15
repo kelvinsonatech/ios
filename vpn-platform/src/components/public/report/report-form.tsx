@@ -24,17 +24,13 @@ import { Turnstile, type TurnstileHandle } from "@/components/public/account/tur
 import { cn } from "@/lib/utils";
 import { REPORT_CATEGORIES } from "@/lib/public/report-categories";
 import type { CreateReportRequest, ReportCategory } from "@/lib/public/types";
+import { decodeTarget, encodeTarget, type ReportServerOption } from "./report-target";
 
 /**
  * "Report a problem" form → POST /api/public/reports. The server list comes from the status data
- * (grouped by protocol); ?server=&protocol= preselects one. Same contract style as account
- * creation: JSON, captcha when enabled, friendly errors, the server's fieldErrors win.
+ * (grouped by protocol); ?server=&protocol= preselects one (see report-target.ts). Same contract
+ * style as account creation: JSON, captcha when enabled, friendly errors, the server's fieldErrors win.
  */
-export interface ReportServerOption {
-  protocol: { slug: string; name: string };
-  servers: { id: string; name: string; location: string }[];
-}
-
 const CATEGORY_META: Record<ReportCategory, { icon: React.ReactNode; hint: string }> = {
   connection: { icon: <WifiOffIcon />, hint: "The app won't connect or drops right away." },
   slow: { icon: <SnailIcon />, hint: "Connected, but slow or unstable." },
@@ -47,25 +43,6 @@ const MAX_MESSAGE = 2000;
 const EMAIL = /^[^\s@<>()"',;:\\]+@[^\s@<>()"',;:\\]+\.[^\s@<>()"',;:\\]+$/;
 
 type FieldKey = "server" | "category" | "message" | "contactEmail";
-
-function encodeTarget(protocol: string, serverId: string | null) {
-  return `${protocol}|${serverId ?? ""}`;
-}
-
-function decodeTarget(v: string): { protocol: string | null; serverId: string | null } {
-  if (!v) return { protocol: null, serverId: null };
-  const [protocol, serverId] = v.split("|");
-  return { protocol: protocol || null, serverId: serverId || null };
-}
-
-export function initialTarget(options: ReportServerOption[], serverId: string | null, protocol: string | null): string {
-  if (serverId) {
-    const exact = options.find((o) => (!protocol || o.protocol.slug === protocol) && o.servers.some((s) => s.id === serverId));
-    if (exact) return encodeTarget(exact.protocol.slug, serverId);
-  }
-  if (protocol && options.some((o) => o.protocol.slug === protocol)) return encodeTarget(protocol, null);
-  return "";
-}
 
 export function ReportForm({
   options,

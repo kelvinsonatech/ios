@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { SearchIcon, XIcon } from "lucide-react";
 import { CountryCard } from "@/components/public/country-card";
+import { COUNTRY_GRID } from "@/components/public/section";
 import { cn } from "@/lib/utils";
 import type { PublicCountrySummary } from "@/lib/public/types";
 
@@ -83,7 +84,7 @@ export function CountriesGrid({ countries, protocolName }: { countries: PublicCo
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 min-[480px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className={COUNTRY_GRID}>
           {shown.map((c, i) => (
             <CountryCard
               key={c.code}

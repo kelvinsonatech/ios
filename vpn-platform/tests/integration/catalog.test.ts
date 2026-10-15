@@ -197,6 +197,18 @@ describe("public catalogue", () => {
     expect((await card()).availability).toBe("available");
   });
 
+  it("a country's remaining slots count only servers that can create accounts", async () => {
+    const germany = async () => (await getProtocolPage("ssh"))!.countries.find((c) => c.code === "DE")!;
+    const remainingOf = async (id: string) => (await getCountryPage("ssh", "germany"))!.servers.find((s) => s.id === id)!.capacity.remaining!;
+    const both = (await remainingOf(ids.de1!)) + (await remainingOf(ids.de2!));
+    expect((await germany()).remaining).toBe(both);
+
+    await setServerLifecycle(ids.de2!, "maintenance", actor);
+    clearPublicCache();
+    expect(await germany()).toMatchObject({ serverCount: 2, availableCount: 1, availability: "available", remaining: await remainingOf(ids.de1!) });
+    await setServerLifecycle(ids.de2!, "active", actor);
+  });
+
   it("latency and last check come from the health monitor columns", async () => {
     const checkedAt = new Date("2026-10-14T10:00:00Z");
     await setServer(ids.de1!, { lastLatencyMs: 187, lastHealthCheckAt: checkedAt });

@@ -9,6 +9,14 @@ export function Container({ className, children, ...props }: React.ComponentProp
   );
 }
 
+/**
+ * Card grids that centre a short list instead of leaving it left-aligned: tracks auto-fit between a
+ * minimum and a maximum width (the maximum decides the column count: 4 countries or 3 servers per
+ * row in the 6xl container), and phones get a single full-width column.
+ */
+export const COUNTRY_GRID = "grid grid-cols-1 gap-5 min-[480px]:grid-cols-[repeat(auto-fit,minmax(14.5rem,16.25rem))] min-[480px]:justify-center";
+export const SERVER_GRID = "grid grid-cols-1 gap-5 md:grid-cols-[repeat(auto-fit,minmax(20rem,22rem))] md:justify-center";
+
 /** Centred section title with an optional eyebrow and lead paragraph. */
 export function SectionHeading({
   eyebrow,

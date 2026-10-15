@@ -209,7 +209,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                     <TableCell>
                       <CategoryBadge category={r.category} />
                     </TableCell>
-                    <TableCell className="max-w-48">
+                    <TableCell className="max-w-48 pr-4">
                       <ServerCell r={r} />
                     </TableCell>
                     <TableCell className="max-w-md whitespace-normal">

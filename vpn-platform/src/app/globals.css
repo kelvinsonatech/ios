@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Self-hosted flag artwork, in the base layer so size utilities on <Flag> (size-10, w-4 ...) win. */
+@import "flag-icons/css/flag-icons.min.css" layer(base);
 
 @custom-variant dark (&:is(.dark *));
 

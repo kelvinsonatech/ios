@@ -11,7 +11,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { AvatarStack, CountBadge, useActiveAccounts } from "./my-accounts-menu";
-import { groupProtocols, type NavProtocol } from "./services-menu";
+import { groupProtocols, type NavProtocol } from "./nav";
 
 const LINKS = [
   { href: "/", label: "Home", icon: HomeIcon },

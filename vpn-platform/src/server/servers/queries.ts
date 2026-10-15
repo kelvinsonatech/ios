@@ -90,6 +90,7 @@ export async function getServerDetail(id: string) {
       icon: protocols.icon,
       globallyEnabled: protocols.enabled,
       displayOrder: protocols.displayOrder,
+      nodeIdentifiers: protocols.nodeIdentifiers,
       serverProtocolId: serverProtocols.id,
       enabled: serverProtocols.enabled,
       detected: serverProtocols.detected,

@@ -1,9 +1,9 @@
-import "flag-icons/css/flag-icons.min.css";
 import { cn } from "@/lib/utils";
 
 /**
  * Country flag from the self-hosted `flag-icons` SVG set (emoji flags do not render on Windows).
- * `squared` uses the 1:1 artwork; the default is 4:3.
+ * `squared` uses the 1:1 artwork; the default is 4:3. The stylesheet is imported once, into the base
+ * layer, by src/app/globals.css, so size classes passed here override its default em-based width.
  */
 export function Flag({ code, squared, className, title }: { code: string; squared?: boolean; className?: string; title?: string }) {
   const cc = /^[A-Za-z]{2}$/.test(code) ? code.toLowerCase() : "xx";

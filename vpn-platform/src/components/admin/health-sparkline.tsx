@@ -118,7 +118,13 @@ export function HealthSparkline({ slices, className }: { slices: HealthSlice[]; 
             </rect>
           ))}
         </svg>
-        <span className="pointer-events-none absolute top-0 right-0 text-[10px] text-muted-foreground tabular-nums">{Math.round(yMax / 2)} ms</span>
+        {/* Labels the dashed mid line (half the scale), sitting just above it. */}
+        <span
+          className="pointer-events-none absolute right-0 bg-card/80 px-0.5 text-[10px] leading-none text-muted-foreground tabular-nums"
+          style={{ top: `calc(${((y(yMax / 2) / H) * 100).toFixed(1)}% - 12px)` }}
+        >
+          {Math.round(yMax / 2)} ms
+        </span>
       </div>
       <div className="flex h-2.5 gap-px" aria-hidden>
         {slices.map((s, i) => (

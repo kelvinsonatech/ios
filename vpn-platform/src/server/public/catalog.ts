@@ -46,6 +46,9 @@ const BROWSE_STATUSES: ServerStatus[] = ["online", "full", "maintenance"];
 const PROTOCOL_SLUG = /^[a-z0-9][a-z0-9-]{0,47}$/;
 const COUNTRY_SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
+/** Fixed-key entries are never evicted by URL-derived ones (see cached()). */
+const PINNED = { pinned: true };
+
 export const STATIC_PAGES = ["/about", "/contact", "/privacy", "/terms", "/acceptable-use", "/server-status", "/report"];
 
 // ---------------------------------------------------------------------------
@@ -177,7 +180,7 @@ async function loadSnapshot(): Promise<Snapshot> {
 }
 
 function snapshot(): Promise<Snapshot> {
-  return cached("snapshot", STATUS_CACHE_MS, loadSnapshot);
+  return cached("snapshot", STATUS_CACHE_MS, loadSnapshot, PINNED);
 }
 
 // ---------------------------------------------------------------------------
@@ -310,7 +313,9 @@ function countrySummaries(cards: PublicServerCard[], protocolSlug: string): Publ
     .map((list) => {
       const c = list[0]!.country;
       const latencies = list.map((s) => s.latencyMs).filter((v): v is number => v !== null);
-      const remaining = list.some((s) => s.capacity.remaining === null) ? null : list.reduce((sum, s) => sum + (s.capacity.remaining ?? 0), 0);
+      // Only servers that can create accounts right now count (maintenance/offline/stopped contribute 0).
+      const usable = list.filter((s) => s.availability === "available");
+      const remaining = usable.some((s) => s.capacity.remaining === null) ? null : usable.reduce((sum, s) => sum + (s.capacity.remaining ?? 0), 0);
       const best = list.map((s) => s.availability).sort((a, b) => AVAILABILITY_RANK[a] - AVAILABILITY_RANK[b])[0]!;
       return {
         ...c,
@@ -351,10 +356,12 @@ export async function listProtocolSummaries(): Promise<PublicProtocolSummary[]> 
   return cached("protocols", CACHE_MS, async () => {
     const snap = await snapshot();
     return snap.protocols.filter((p) => snap.rows.some((r) => r.protocolId === p.id)).map((p) => summary(snap, p));
-  });
+  }, PINNED);
 }
 
 export async function getProtocolPage(protocolSlug: string): Promise<ProtocolPageData | null> {
+  // Malformed input is rejected before it can occupy a cache entry.
+  if (!PROTOCOL_SLUG.test(protocolSlug)) return null;
   return cached(`protocol:${protocolSlug}`, CACHE_MS, async () => {
     const snap = await snapshot();
     const p = findProtocol(snap, protocolSlug);
@@ -364,10 +371,10 @@ export async function getProtocolPage(protocolSlug: string): Promise<ProtocolPag
 }
 
 export async function getCountryPage(protocolSlug: string, countrySlugValue: string): Promise<CountryPageData | null> {
+  if (!PROTOCOL_SLUG.test(protocolSlug) || !COUNTRY_SLUG.test(countrySlugValue)) return null;
+  const code = countryCodeFromSlug(countrySlugValue);
+  if (!code) return null;
   return cached(`country:${protocolSlug}:${countrySlugValue}`, CACHE_MS, async () => {
-    if (!COUNTRY_SLUG.test(countrySlugValue)) return null;
-    const code = countryCodeFromSlug(countrySlugValue);
-    if (!code) return null;
     const snap = await snapshot();
     const p = findProtocol(snap, protocolSlug);
     if (!p) return null;
@@ -378,10 +385,10 @@ export async function getCountryPage(protocolSlug: string, countrySlugValue: str
 }
 
 export async function getServerPage(protocolSlug: string, countrySlugValue: string, serverSlug: string): Promise<ServerPageData | null> {
+  if (!PROTOCOL_SLUG.test(protocolSlug) || !SERVER_SLUG_PATTERN.test(serverSlug) || !COUNTRY_SLUG.test(countrySlugValue)) return null;
+  const code = countryCodeFromSlug(countrySlugValue);
+  if (!code) return null;
   return cached(`server:${protocolSlug}:${countrySlugValue}:${serverSlug}`, CACHE_MS, async () => {
-    if (!SERVER_SLUG_PATTERN.test(serverSlug) || !COUNTRY_SLUG.test(countrySlugValue)) return null;
-    const code = countryCodeFromSlug(countrySlugValue);
-    if (!code) return null;
     const snap = await snapshot();
     const p = findProtocol(snap, protocolSlug);
     if (!p) return null;
@@ -411,7 +418,7 @@ export async function getStatusPage(): Promise<StatusPageData> {
       },
       sections,
     };
-  });
+  }, PINNED);
 }
 
 /** Accounts ever activated (active, expired or revoked), in total and since local midnight, per protocol. */
@@ -444,7 +451,7 @@ export async function getSiteStats(): Promise<SiteStats> {
       countries: new Set(browsable.map((r) => r.server.countryCode.toUpperCase())).size,
       byProtocol,
     };
-  });
+  }, PINNED);
 }
 
 export async function listSitemapEntries(): Promise<SitemapEntry[]> {
@@ -468,5 +475,5 @@ export async function listSitemapEntries(): Promise<SitemapEntry[]> {
       }
     }
     return entries;
-  });
+  }, PINNED);
 }

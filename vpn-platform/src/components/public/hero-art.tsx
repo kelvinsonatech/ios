@@ -60,7 +60,7 @@ export function HeroArt({ avatar, servers, sample }: { avatar: string; servers: 
         </g>
       </svg>
 
-      <div className="absolute top-1/2 left-1/2 flex size-32 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2.2rem] bg-white/15 shadow-2xl ring-1 shadow-black/20 ring-white/30 backdrop-blur-md sm:size-36">
+      <div className="absolute top-[40%] left-1/2 flex size-32 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2.2rem] bg-white/15 shadow-2xl ring-1 shadow-black/20 ring-white/30 backdrop-blur-md sm:size-36">
         <BrandMark className="size-20 drop-shadow-lg sm:size-24" />
       </div>
 
@@ -69,7 +69,7 @@ export function HeroArt({ avatar, servers, sample }: { avatar: string; servers: 
           key={s.key}
           className={cn(
             "absolute flex items-center gap-2.5 rounded-2xl bg-card/95 px-3 py-2 text-card-foreground shadow-xl ring-1 shadow-black/15 ring-black/5 backdrop-blur",
-            i === 0 ? "top-[6%] right-0 animate-float-slow" : "top-[38%] -left-2 animate-float [animation-delay:1.5s]",
+            i === 0 ? "top-[4%] right-0 animate-float-slow" : "top-[58%] -left-2 animate-float [animation-delay:1.5s]",
           )}
         >
           <Flag code={s.countryCode} squared className="size-8 rounded-full" />
@@ -87,17 +87,21 @@ export function HeroArt({ avatar, servers, sample }: { avatar: string; servers: 
         </div>
       ))}
 
-      <div className="absolute right-[2%] bottom-[4%] w-64 animate-float rounded-3xl bg-card/95 p-4 text-card-foreground shadow-2xl ring-1 shadow-black/20 ring-black/5 backdrop-blur sm:w-72">
+      <div className="absolute right-0 -bottom-[2%] w-60 animate-float rounded-3xl bg-card/95 p-4 text-card-foreground shadow-2xl ring-1 shadow-black/20 ring-black/5 backdrop-blur sm:w-64">
         <div className="flex items-center gap-3">
-          <UserAvatar src={avatar} size={48} className="ring-2 ring-primary/30" />
+          <span className="relative shrink-0">
+            <UserAvatar src={avatar} size={48} className="ring-2 ring-primary/30" />
+            <span className="absolute right-0 bottom-0 size-3 rounded-full bg-success ring-2 ring-card" />
+          </span>
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold">traveller</p>
-            <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
+            <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
               <Flag code={sample.countryCode} className="h-2.5 w-3.5" />
-              {sample.protocol} · {sample.server}
+              <span className="truncate">
+                {sample.protocol} · {sample.server}
+              </span>
             </p>
           </div>
-          <span className="rounded-full bg-success-soft px-2 py-0.5 text-[10px] font-semibold text-success">Active</span>
         </div>
         <div className="mt-4 space-y-2">
           {["Host", "Password"].map((label, i) => (

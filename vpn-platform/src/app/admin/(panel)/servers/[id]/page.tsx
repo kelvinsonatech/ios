@@ -30,6 +30,7 @@ import { formatBytes, formatDuration } from "@/lib/format";
 import { countrySlug } from "@/lib/slug";
 import { requirePermission } from "@/server/auth/guards";
 import { can } from "@/server/auth/rbac";
+import { matchProtocols } from "@/server/protocols/identifiers";
 import { quotaWindow } from "@/server/provisioning/quota";
 import { getHealthTimeline, getServerDetail } from "@/server/servers/queries";
 import { getSiteSettings } from "@/server/settings/service";
@@ -77,6 +78,12 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
   const quotaUsed = (p: (typeof detail.protocols)[number]) =>
     p.quotaWindowStart && p.quotaWindowStart.getTime() === window.start.getTime() ? (p.quotaUsed ?? 0) : 0;
   const latency = server.lastLatencyMs ?? h?.latencyMs ?? null;
+  // `unmappedProtocols` was stored at the last sync; a protocol added or edited since may now claim some of them.
+  const { matches, unmapped } = matchProtocols(
+    server.unmappedProtocols,
+    detail.protocols.map((p) => ({ id: p.protocolId, slug: p.slug, name: p.name, nodeIdentifiers: p.nodeIdentifiers })),
+  );
+  const mappedSinceSync = [...matches.values()].map((m) => m.protocol.name);
 
   return (
     <>
@@ -228,16 +235,24 @@ export default async function ServerDetailPage({ params }: { params: Promise<{ i
                 <p className="text-sm text-muted-foreground">No protocols detected yet. Run a sync.</p>
               ) : null}
             </CardContent>
-            {server.unmappedProtocols.length ? (
-              <CardContent>
-                <p className="text-xs text-muted-foreground">
-                  The server also reports <span className="font-mono">{server.unmappedProtocols.join(", ")}</span>, which no protocol maps to.
-                  Add the identifier to a protocol in{" "}
-                  <Link href="/admin/protocols" className="underline underline-offset-4">
-                    Protocols
-                  </Link>{" "}
-                  or create a new protocol.
-                </p>
+            {mappedSinceSync.length || unmapped.length ? (
+              <CardContent className="grid gap-1.5">
+                {mappedSinceSync.length ? (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">{mappedSinceSync.join(", ")}</span> can now be detected on this server.{" "}
+                    {operate ? "Sync the server to add it." : "Ask a server manager to sync the server."}
+                  </p>
+                ) : null}
+                {unmapped.length ? (
+                  <p className="text-xs text-muted-foreground">
+                    The server also reports <span className="font-mono">{unmapped.join(", ")}</span>, which no protocol maps to. Add the identifier to a
+                    protocol in{" "}
+                    <Link href="/admin/protocols" className="underline underline-offset-4">
+                      Protocols
+                    </Link>{" "}
+                    or create a new protocol.
+                  </p>
+                ) : null}
               </CardContent>
             ) : null}
           </Card>

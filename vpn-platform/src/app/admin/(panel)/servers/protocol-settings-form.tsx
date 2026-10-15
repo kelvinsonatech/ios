@@ -76,13 +76,14 @@ export function ProtocolSettingsForm({
   const err = (key: string) => state.fieldErrors?.[key]?.[0];
   const resetLabel = rows[0]?.quotaResetLabel;
   return (
-    <form onSubmit={onSubmit} className="grid gap-4" noValidate>
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
+    <form onSubmit={onSubmit} className="grid min-w-0 gap-4" noValidate>
+      <div className="min-w-0 overflow-hidden rounded-lg border">
+        {/* Phones: every row becomes a small card (name + switch, then the two limits side by side). */}
+        <Table className="max-sm:block">
+          <TableHeader className="max-sm:hidden">
             <TableRow>
               <TableHead>Protocol</TableHead>
-              <TableHead>On server</TableHead>
+              <TableHead className="hidden md:table-cell">On server</TableHead>
               <TableHead className="hidden xl:table-cell">Ports</TableHead>
               <TableHead className="text-right">Active</TableHead>
               <TableHead className="min-w-32">Max active</TableHead>
@@ -90,16 +91,22 @@ export function ProtocolSettingsForm({
               <TableHead className="w-20 text-right">Enabled</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
+          <TableBody className="max-sm:block">
             {rows.map((r) => (
-              <TableRow key={r.protocolId} className={cn("[&>td]:align-top", !r.detected && "opacity-60")}>
-                <TableCell className="pt-3">
+              <TableRow
+                key={r.protocolId}
+                className={cn(
+                  "[&>td]:align-top max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:gap-y-2.5 max-sm:p-3 max-sm:[&>td]:p-0",
+                  !r.detected && "opacity-60",
+                )}
+              >
+                <TableCell className="pt-3 max-sm:min-w-0 max-sm:whitespace-normal">
                   <input type="hidden" name={`present:${r.protocolId}`} value="1" />
                   <div className="flex items-center gap-2.5">
                     <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
                       <ProtocolIcon name={r.icon} className="size-3.5" />
                     </span>
-                    <div className="grid">
+                    <div className="grid min-w-0">
                       <span className="font-medium">
                         {r.name}
                         {r.isNew ? (
@@ -108,11 +115,23 @@ export function ProtocolSettingsForm({
                           </Badge>
                         ) : null}
                       </span>
-                      {!r.globallyEnabled ? <span className="text-xs text-warning">Disabled globally in Protocols</span> : null}
+                      {/* Below md the "On server" column (and below sm the "Active" column) is folded in here. */}
+                      <span className="text-xs text-muted-foreground md:hidden">
+                        {r.detected ? (
+                          <>
+                            <ServiceDot status={r.serviceStatus} className="mr-1.5 align-middle" />
+                            Detected
+                          </>
+                        ) : (
+                          "Not installed"
+                        )}
+                        <span className="sm:hidden"> · {r.currentAccounts} active</span>
+                      </span>
+                      {!r.globallyEnabled ? <span className="text-xs whitespace-normal text-warning">Disabled globally in Protocols</span> : null}
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="pt-4">
+                <TableCell className="hidden pt-4 md:table-cell">
                   {r.detected ? (
                     <span className="flex items-center gap-1.5 text-sm">
                       <ServiceDot status={r.serviceStatus} />
@@ -127,42 +146,48 @@ export function ProtocolSettingsForm({
                   {portsText(r.ports) || "—"}
                   {r.transports.length ? <span className="block">{r.transports.join(", ")}</span> : null}
                 </TableCell>
-                <TableCell className="pt-4 text-right tabular-nums">{r.currentAccounts}</TableCell>
-                <TableCell>
+                <TableCell className="pt-4 text-right tabular-nums max-sm:hidden">{r.currentAccounts}</TableCell>
+                <TableCell className="max-sm:row-start-2 max-sm:grid max-sm:content-start max-sm:gap-1">
+                  <span className="text-xs text-muted-foreground sm:hidden" aria-hidden>
+                    Max active
+                  </span>
                   <Input
                     name={`max:${r.protocolId}`}
                     inputMode="numeric"
                     defaultValue={r.maxAccounts ?? ""}
                     placeholder="No limit"
                     disabled={!canEdit}
-                    className="h-8 w-28 tabular-nums"
+                    className="h-8 w-28 tabular-nums max-sm:w-full"
                     aria-label={`Maximum active ${r.name} accounts`}
                     aria-invalid={!!err(`max:${r.protocolId}`)}
                   />
-                  {err(`max:${r.protocolId}`) ? <p className="mt-1 max-w-40 text-xs text-destructive">{err(`max:${r.protocolId}`)}</p> : null}
+                  {err(`max:${r.protocolId}`) ? <p className="mt-1 max-w-40 text-xs whitespace-normal text-destructive">{err(`max:${r.protocolId}`)}</p> : null}
                 </TableCell>
-                <TableCell>
-                  <div className="grid gap-1.5">
+                <TableCell className="max-sm:row-start-2 max-sm:min-w-0">
+                  <div className="grid gap-1.5 max-sm:gap-1">
+                    <span className="text-xs text-muted-foreground sm:hidden" aria-hidden>
+                      Creation quota
+                    </span>
                     <Input
                       name={`quota:${r.protocolId}`}
                       inputMode="numeric"
                       defaultValue={r.quotaLimit ?? ""}
                       placeholder="No quota"
                       disabled={!canEdit}
-                      className="h-8 w-28 tabular-nums"
+                      className="h-8 w-28 tabular-nums max-sm:w-full"
                       aria-label={`${r.name} accounts that can be created per reset period`}
                       aria-invalid={!!err(`quota:${r.protocolId}`)}
                     />
                     {err(`quota:${r.protocolId}`) ? (
-                      <p className="max-w-48 text-xs text-destructive">{err(`quota:${r.protocolId}`)}</p>
+                      <p className="max-w-48 text-xs whitespace-normal text-destructive">{err(`quota:${r.protocolId}`)}</p>
                     ) : r.detected ? (
-                      <span className="max-w-48 text-xs">
+                      <span className="max-w-48 text-xs whitespace-normal">
                         <QuotaUsage used={r.quotaUsed} limit={r.quotaLimit} />
                       </span>
                     ) : null}
                   </div>
                 </TableCell>
-                <TableCell className="pt-4 text-right">
+                <TableCell className="pt-4 text-right max-sm:col-start-2 max-sm:row-start-1 max-sm:self-center">
                   <Switch
                     name={`enabled:${r.protocolId}`}
                     defaultChecked={r.enabled && r.detected}

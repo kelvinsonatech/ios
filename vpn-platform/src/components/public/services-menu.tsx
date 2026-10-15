@@ -12,35 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import type { PublicProtocolSummary } from "@/lib/public/types";
-
-/** Protocol fields the navigation needs (kept small: it is serialised into every public page). */
-export type NavProtocol = Pick<PublicProtocolSummary, "slug" | "name" | "description" | "icon" | "category" | "serverCount" | "availableCount" | "href">;
-
-const CATEGORY_LABEL: Record<string, string> = {
-  ssh: "SSH tunnels",
-  v2ray: "V2Ray / Xray",
-  vpn: "VPN",
-  proxy: "Proxy",
-  udp: "UDP",
-};
-
-export function categoryLabel(category: string): string {
-  return CATEGORY_LABEL[category] ?? category.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-/** Protocols grouped by category, in first-seen order. */
-export function groupProtocols(protocols: NavProtocol[]): { category: string; label: string; items: NavProtocol[] }[] {
-  const groups = new Map<string, NavProtocol[]>();
-  for (const p of protocols) groups.set(p.category, [...(groups.get(p.category) ?? []), p]);
-  return [...groups].map(([category, items]) => ({ category, label: categoryLabel(category), items }));
-}
-
-export const navItemClass = (active: boolean) =>
-  cn(
-    "inline-flex h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:size-4 [&_svg]:shrink-0",
-    active ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground",
-  );
+import { groupProtocols, navItemClass, type NavProtocol } from "./nav";
 
 /** "Services" mega-menu: every protocol with icon, short description and live server counts. */
 export function ServicesMenu({ protocols, active }: { protocols: NavProtocol[]; active: boolean }) {

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import type { PublicProtocolSummary } from "@/lib/public/types";
 import { FlagStack } from "./flag-stack";
 import { formatDayRange, plural } from "./format";
-import { categoryLabel } from "./services-menu";
+import { categoryLabel } from "./nav";
 
 /**
  * Home page protocol card: category and server-count badges, icon medallion, name, three

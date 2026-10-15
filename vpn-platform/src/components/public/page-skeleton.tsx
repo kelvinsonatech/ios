@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { HeroWave } from "./hero-wave";
-import { Container } from "./section";
+import { COUNTRY_GRID, Container, SERVER_GRID } from "./section";
 
 /** Loading state for browse pages: a hero band with placeholder text and a grid of card skeletons. */
 export function PageSkeleton({ cards = 6, variant = "country" }: { cards?: number; variant?: "country" | "server" }) {
@@ -28,14 +28,14 @@ export function PageSkeleton({ cards = 6, variant = "country" }: { cards?: numbe
           <Skeleton className="h-8 w-72 max-w-full" />
           <Skeleton className="h-4 w-80 max-w-full" />
         </div>
-        <div className={variant === "country" ? "grid gap-5 min-[480px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4" : "grid gap-5 md:grid-cols-2 xl:grid-cols-3"}>
+        <div className={variant === "country" ? COUNTRY_GRID : SERVER_GRID}>
           {Array.from({ length: cards }, (_, i) => (
             <div key={i} className="flex flex-col items-center rounded-3xl border bg-card p-5 shadow-sm">
               <div className="flex w-full justify-between">
                 <Skeleton className="h-6 w-20 rounded-full" />
                 <Skeleton className="h-6 w-16 rounded-full" />
               </div>
-              {variant === "country" ? <Skeleton className="mt-6 size-28 rounded-full" /> : <Skeleton className="mt-6 h-6 w-40" />}
+              {variant === "country" ? <Skeleton className="mt-6 size-28 rounded-[1.6rem]" /> : <Skeleton className="mt-6 h-6 w-40" />}
               <Skeleton className="mt-4 h-5 w-32" />
               <div className="mt-6 w-full space-y-3">
                 <Skeleton className="h-4 w-full" />

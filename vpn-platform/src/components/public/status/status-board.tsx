@@ -79,6 +79,8 @@ export function StatusBoard({
   const [announcement, setAnnouncement] = useState("");
   const inflight = useRef(false);
   const nextAtRef = useRef<number | null>(null);
+  const lastSummary = useRef<string | null>(initial ? `${initial.totals.online} of ${initial.totals.servers} servers online` : null);
+  const failedRef = useRef(false);
 
   const protocols = useMemo(() => (data?.sections ?? []).map((s) => s.protocol), [data]);
   const [protocol, setProtocol] = useState<string>(() =>
@@ -94,7 +96,7 @@ export function StatusBoard({
     setNextAt(at);
   }, []);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (manual = false) => {
     if (inflight.current) return;
     inflight.current = true;
     setRefreshing(true);
@@ -105,10 +107,15 @@ export function StatusBoard({
       if (!isStatusData(json)) throw new Error("unexpected response");
       setData(json);
       setFailed(false);
-      setAnnouncement(`Status updated: ${json.totals.online} of ${json.totals.servers} servers online.`);
+      failedRef.current = false;
+      // Speak only when asked or when something changed: a 30 s heartbeat would be noise.
+      const summary = `${json.totals.online} of ${json.totals.servers} servers online`;
+      if (manual || (lastSummary.current !== null && lastSummary.current !== summary)) setAnnouncement(`Status updated: ${summary}.`);
+      lastSummary.current = summary;
     } catch {
       setFailed(true);
-      setAnnouncement("Couldn't refresh the status. Showing the last known data.");
+      if (manual || !failedRef.current) setAnnouncement("Couldn't refresh the status. Showing the last known data.");
+      failedRef.current = true;
     } finally {
       inflight.current = false;
       setRefreshing(false);
@@ -221,7 +228,7 @@ export function StatusBoard({
             </p>
           </div>
         </div>
-        <Button type="button" variant="outline" className="h-10 shrink-0" onClick={() => void refresh()} disabled={refreshing}>
+        <Button type="button" variant="outline" className="h-10 shrink-0" onClick={() => void refresh(true)} disabled={refreshing}>
           <RefreshCwIcon className={cn(refreshing && "animate-spin motion-reduce:animate-none")} aria-hidden />
           Refresh now
         </Button>
@@ -241,7 +248,7 @@ export function StatusBoard({
 
       {/* Filters */}
       <div className="grid gap-3 rounded-2xl border bg-card p-3 shadow-xs sm:p-4">
-        <div role="group" aria-label="Filter by service" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+        <div role="group" aria-label="Filter by service" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button type="button" className={chip(protocol === "all")} aria-pressed={protocol === "all"} onClick={() => selectProtocol("all")}>
             All services
           </button>

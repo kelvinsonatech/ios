@@ -217,7 +217,7 @@ export function AccountResult({
                 width={84}
                 height={84}
                 draggable={false}
-                className="size-21 rounded-2xl bg-muted shadow-md ring-4 ring-card animate-in zoom-in-75 duration-500 motion-reduce:animate-none"
+                className="size-21 rounded-2xl bg-[color-mix(in_oklch,var(--primary)_14%,white)] shadow-md ring-4 ring-card animate-in zoom-in-75 duration-500 motion-reduce:animate-none"
               />
             ) : (
               <span className="flex size-21 items-center justify-center rounded-2xl bg-muted ring-4 ring-card" />

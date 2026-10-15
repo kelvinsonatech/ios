@@ -33,7 +33,7 @@ export function CompatibilityBadge({ compatibility }: { compatibility: Compatibi
   );
 }
 
-export function ServiceDot({ status }: { status: string }) {
+export function ServiceDot({ status, className }: { status: string; className?: string }) {
   const color = status === "running" ? "bg-success" : status === "stopped" ? "bg-destructive" : "bg-muted-foreground/50";
-  return <span title={status} className={cn("inline-block size-2 rounded-full", color)} />;
+  return <span title={status} className={cn("inline-block size-2 rounded-full", color, className)} />;
 }

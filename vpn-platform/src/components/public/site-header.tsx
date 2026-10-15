@@ -9,7 +9,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { MyAccountsButton, MyAccountsMenu } from "./my-accounts-menu";
-import { ServicesMenu, navItemClass, type NavProtocol } from "./services-menu";
+import { navItemClass, type NavProtocol } from "./nav";
+import { ServicesMenu } from "./services-menu";
 import { SiteMobileNav } from "./site-mobile-nav";
 
 function subscribeScroll(onChange: () => void) {

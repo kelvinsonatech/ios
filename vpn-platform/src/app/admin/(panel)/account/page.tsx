@@ -37,7 +37,7 @@ export default async function AccountPage() {
                 Signed in <RelativeTime date={admin.lastLoginAt} /> · member since <RelativeTime date={admin.createdAt} />
               </p>
             </div>
-            <p className="flex items-center gap-1.5 text-xs text-muted-foreground sm:max-w-56 sm:pt-14 sm:text-right">
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground sm:shrink-0 sm:pt-14 sm:whitespace-nowrap">
               <PaletteIcon className="size-3.5 shrink-0" />
               <span>
                 Avatar style: {style.label}.{" "}
@@ -81,9 +81,11 @@ export default async function AccountPage() {
           </CardHeader>
           <CardContent className="grid gap-2">
             {sessions.map((s) => (
-              <div key={s.id} className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
+              <div key={s.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border px-3 py-2 text-sm">
                 <div className="min-w-0">
-                  <p className="truncate">{s.userAgent ?? "Unknown device"}</p>
+                  <p className="line-clamp-2 [overflow-wrap:anywhere]" title={s.userAgent ?? undefined}>
+                    {s.userAgent ?? "Unknown device"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     {s.ip ?? "unknown IP"} · active <RelativeTime date={s.lastSeenAt} />
                   </p>

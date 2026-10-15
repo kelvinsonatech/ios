@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import type { SavedAccountSummary } from "@/lib/public/types";
 import { Flag } from "./flag";
 import { Countdown, useNow } from "./live-time";
-import { navItemClass } from "./services-menu";
+import { navItemClass } from "./nav";
 import { useSavedAccounts } from "./account/saved-accounts";
 
 const NONE: SavedAccountSummary[] = [];

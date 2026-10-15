@@ -12,7 +12,7 @@ import { GuideSection } from "@/components/public/guide-section";
 import { JsonLd } from "@/components/public/json-ld";
 import { HeroChip, PageHeader } from "@/components/public/page-header";
 import { Container, EmptyState, SectionHeading } from "@/components/public/section";
-import { categoryLabel } from "@/components/public/services-menu";
+import { categoryLabel } from "@/components/public/nav";
 import { guideFor } from "@/lib/protocol-guides";
 import { absoluteUrl, pageMetadata, siteOrigin } from "@/lib/seo";
 import { loadProtocolPage, loadSettings } from "../_lib/data";

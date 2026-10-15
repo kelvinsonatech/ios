@@ -97,6 +97,22 @@ export function removeSavedAccount(id: string) {
   write(readSavedAccounts().filter((s) => s.id !== id));
 }
 
+/** Removes several summaries at once (e.g. every expired one). */
+export function removeSavedAccounts(ids: Iterable<string>) {
+  const drop = new Set(ids);
+  write(readSavedAccounts().filter((s) => !drop.has(s.id)));
+}
+
+/** Puts removed summaries back at their old positions ("Undo"). */
+export function restoreSavedAccounts(entries: { summary: SavedAccountSummary; index: number }[]) {
+  const items = readSavedAccounts();
+  for (const { summary, index } of [...entries].sort((a, b) => a.index - b.index)) {
+    if (!isSummary(summary) || items.some((s) => s.id === summary.id)) continue;
+    items.splice(Math.max(0, Math.min(index, items.length)), 0, pick(summary));
+  }
+  write(items);
+}
+
 export function clearSavedAccounts() {
   write([]);
 }

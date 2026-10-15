@@ -17,6 +17,32 @@ export function isOnline(s: PublicServerCard) {
   return s.availability === "available" || s.availability === "full";
 }
 
+/**
+ * Row layout shared by the header and every server. One markup for all widths (half the DOM of a
+ * table plus separate cards): on phones each row is a card laid out with grid areas, from md up the
+ * same cells line up as table columns. Fixed column tracks keep refreshes free of layout jumps.
+ */
+const COLS =
+  "md:grid-cols-[minmax(0,2.3fr)_minmax(0,2.2fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1.25fr)_minmax(0,1fr)] md:[grid-template-areas:'server_host_status_resp_check_rem_action']";
+const ROW = cn(
+  "grid grid-cols-3 gap-y-3 px-4 py-4 [grid-template-areas:'server_server_status'_'host_host_host'_'resp_check_rem'_'action_action_action']",
+  "md:items-center md:gap-0 md:px-0 md:py-0",
+  COLS,
+);
+/** Desktop cell padding (first and last columns get the card's 20 px inset). */
+const CELL = "min-w-0 md:px-3 md:py-3";
+/** The three metrics form one tinted strip on phones. */
+const METRIC = "min-w-0 bg-muted/40 px-3 py-2.5 text-xs md:bg-transparent md:px-3 md:py-3 md:text-sm";
+
+function MobileLabel({ children }: { children: React.ReactNode }) {
+  // The column header already names the cell for assistive tech.
+  return (
+    <span aria-hidden className="mb-0.5 block text-muted-foreground md:hidden">
+      {children}
+    </span>
+  );
+}
+
 function Slots({ capacity, className }: { capacity: PublicCapacity; className?: string }) {
   const { remaining, limit } = capacity;
   if (remaining === null) return <span className={cn("text-xs text-muted-foreground", className)}>Unlimited</span>;
@@ -28,14 +54,14 @@ function Slots({ capacity, className }: { capacity: PublicCapacity; className?: 
         {remaining} <span className="text-xs font-normal text-muted-foreground">{remaining === 1 ? "slot" : "slots"}</span>
       </span>
       <div
-        className="mt-1 h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-muted"
+        className="mt-1 h-1.5 w-full max-w-28 overflow-hidden rounded-full bg-foreground/10"
         role="meter"
         aria-label="Remaining slots"
         aria-valuemin={0}
         aria-valuemax={limit ?? remaining}
         aria-valuenow={remaining}
       >
-        <div className={cn("h-full rounded-full transition-[width] duration-500", tone)} style={{ width: `${pct}%` }} />
+        <div className={cn("h-full rounded-full transition-[width] duration-500 motion-reduce:transition-none", tone)} style={{ width: `${pct}%` }} />
       </div>
       {remaining === 0 && capacity.quotaResetsAt ? (
         <Countdown iso={capacity.quotaResetsAt} label="Resets" doneText="Resetting now" className="mt-1 block text-[11px] text-muted-foreground" />
@@ -44,10 +70,10 @@ function Slots({ capacity, className }: { capacity: PublicCapacity; className?: 
   );
 }
 
-function Action({ server, protocolName, block }: { server: PublicServerCard; protocolName: string; block?: boolean }) {
+function Action({ server, protocolName }: { server: PublicServerCard; protocolName: string }) {
   if (server.availability === "available") {
     return (
-      <Button asChild size="sm" className={cn("h-9 rounded-lg", block && "h-10 w-full")}>
+      <Button asChild size="sm" className="h-10 w-full rounded-lg md:h-9 md:w-auto">
         <Link href={server.href} aria-label={`Create ${protocolName} account on ${server.name}`}>
           <PlusIcon aria-hidden />
           Create
@@ -57,29 +83,69 @@ function Action({ server, protocolName, block }: { server: PublicServerCard; pro
   }
   if (server.availability === "full") {
     return (
-      <Badge variant="info" className={cn("h-7 px-2.5", block && "h-10 w-full rounded-lg text-sm")}>
+      <Badge variant="info" className="h-10 w-full rounded-lg text-sm md:h-7 md:w-auto md:rounded-md md:px-2.5 md:text-xs">
         Full
       </Badge>
     );
   }
-  return <span className="text-sm text-muted-foreground" aria-label="No action available">—</span>;
+  return (
+    <span className="text-sm text-muted-foreground">
+      <span aria-hidden>—</span>
+      <span className="sr-only">No action available</span>
+    </span>
+  );
 }
 
 function HostCell({ server }: { server: PublicServerCard }) {
   if (server.hostname) {
     return (
-      <span className="block truncate font-mono text-[0.8rem]" title={server.hostname}>
+      <span className="block truncate font-mono text-xs text-muted-foreground md:text-[0.8rem] md:text-foreground" title={server.hostname}>
         {server.hostname}
       </span>
     );
   }
-  return <span className="block truncate text-muted-foreground">{server.city ?? server.country.name}</span>;
+  return <span className="block truncate text-xs text-muted-foreground md:text-sm">{server.city ?? server.country.name}</span>;
 }
 
-/**
- * One protocol on the status page: a table on desktop and stacked cards on phones (only one of
- * the two is displayed; the other is display:none so assistive tech reads each server once).
- */
+function ServerRow({ server: s, protocolName }: { server: PublicServerCard; protocolName: string }) {
+  const actionable = s.availability === "available" || s.availability === "full";
+  return (
+    <div role="row" className={cn(ROW, "transition-colors md:hover:bg-muted/30")}>
+      <div role="cell" className={cn(CELL, "[grid-area:server] md:pl-5")}>
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Flag code={s.country.code} className="h-4 w-5.5 md:h-3.5 md:w-5" title={s.country.name} />
+          <div className="min-w-0">
+            <p className="truncate font-semibold">{s.name}</p>
+            <p className="hidden truncate text-xs text-muted-foreground md:block">{[s.city, s.country.name].filter(Boolean).join(", ")}</p>
+          </div>
+        </div>
+      </div>
+      <div role="cell" className={cn(CELL, "-mt-2 pl-8 [grid-area:host] md:mt-0 md:pl-3")}>
+        <HostCell server={s} />
+      </div>
+      <div role="cell" className={cn(CELL, "self-start justify-self-end [grid-area:status] md:self-center md:justify-self-start")}>
+        <AvailabilityBadge availability={s.availability} />
+      </div>
+      <div role="cell" className={cn(METRIC, "rounded-l-xl [grid-area:resp] md:rounded-none")}>
+        <MobileLabel>Response</MobileLabel>
+        <Latency ms={s.latencyMs} className="font-medium" />
+      </div>
+      <div role="cell" className={cn(METRIC, "text-muted-foreground [grid-area:check]")}>
+        <MobileLabel>Checked</MobileLabel>
+        <RelativeTime iso={s.lastCheckedAt} fallback="Not yet" className="block truncate font-medium text-foreground md:font-normal md:text-muted-foreground" />
+      </div>
+      <div role="cell" className={cn(METRIC, "rounded-r-xl [grid-area:rem] md:rounded-none")}>
+        <MobileLabel>Remaining</MobileLabel>
+        <Slots capacity={s.capacity} />
+      </div>
+      <div role="cell" className={cn(CELL, "[grid-area:action] md:pr-5 md:text-right", !actionable && "hidden md:block")}>
+        <Action server={s} protocolName={protocolName} />
+      </div>
+    </div>
+  );
+}
+
+/** One protocol on the status page: header with a health dot, then the responsive server table. */
 export function StatusSection({ section }: { section: Section }) {
   const { protocol, servers } = section;
   const online = servers.filter(isOnline).length;
@@ -113,102 +179,38 @@ export function StatusSection({ section }: { section: Section }) {
         </Link>
       </header>
 
-      <table className="hidden w-full table-fixed text-sm md:table">
-        <caption className="sr-only">{protocol.name} servers</caption>
-        <colgroup>
-          <col className="w-[22%]" />
-          <col className="w-[22%]" />
-          <col className="w-[13%]" />
-          <col className="w-[10%]" />
-          <col className="w-[11%]" />
-          <col className="w-[12%]" />
-          <col className="w-[10%]" />
-        </colgroup>
-        <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
-          <tr>
-            <th scope="col" className="px-5 py-2.5 font-medium">Server</th>
-            <th scope="col" className="px-3 py-2.5 font-medium">Host</th>
-            <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
-            <th scope="col" className="px-3 py-2.5 font-medium">Response</th>
-            <th scope="col" className="px-3 py-2.5 font-medium">Last checked</th>
-            <th scope="col" className="px-3 py-2.5 font-medium">Remaining</th>
-            <th scope="col" className="px-5 py-2.5 text-right font-medium">Action</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
+      <div role="table" aria-label={`${protocol.name} servers`} aria-rowcount={servers.length + 1} className="text-sm">
+        <div role="rowgroup" className="sr-only md:not-sr-only">
+          <div role="row" className={cn("bg-muted/40 text-left text-xs text-muted-foreground md:grid", COLS)}>
+            <span role="columnheader" className="px-5 py-2.5 font-medium [grid-area:server]">
+              Server
+            </span>
+            <span role="columnheader" className="px-3 py-2.5 font-medium [grid-area:host]">
+              Host
+            </span>
+            <span role="columnheader" className="px-3 py-2.5 font-medium [grid-area:status]">
+              Status
+            </span>
+            <span role="columnheader" className="px-3 py-2.5 font-medium [grid-area:resp]">
+              Response
+            </span>
+            <span role="columnheader" className="px-3 py-2.5 font-medium [grid-area:check]">
+              Last checked
+            </span>
+            <span role="columnheader" className="px-3 py-2.5 font-medium [grid-area:rem]">
+              Remaining
+            </span>
+            <span role="columnheader" className="px-5 py-2.5 text-right font-medium [grid-area:action]">
+              Action
+            </span>
+          </div>
+        </div>
+        <div role="rowgroup" className="divide-y">
           {servers.map((s) => (
-            <tr key={s.id} className="transition-colors hover:bg-muted/30">
-              <td className="px-5 py-3">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <Flag code={s.country.code} className="h-3.5 w-5" title={s.country.name} />
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold">{s.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{[s.city, s.country.name].filter(Boolean).join(", ")}</p>
-                  </div>
-                </div>
-              </td>
-              <td className="px-3 py-3">
-                <HostCell server={s} />
-              </td>
-              <td className="px-3 py-3">
-                <AvailabilityBadge availability={s.availability} />
-              </td>
-              <td className="px-3 py-3">
-                <Latency ms={s.latencyMs} className="font-medium" />
-              </td>
-              <td className="px-3 py-3 text-muted-foreground">
-                <RelativeTime iso={s.lastCheckedAt} fallback="Not yet" />
-              </td>
-              <td className="px-3 py-3">
-                <Slots capacity={s.capacity} />
-              </td>
-              <td className="px-5 py-3 text-right">
-                <Action server={s} protocolName={protocol.name} />
-              </td>
-            </tr>
+            <ServerRow key={s.id} server={s} protocolName={protocol.name} />
           ))}
-        </tbody>
-      </table>
-
-      <ul className="divide-y md:hidden">
-        {servers.map((s) => (
-          <li key={s.id} className="grid gap-3 px-4 py-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <Flag code={s.country.code} className="h-4 w-5.5" title={s.country.name} />
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{s.name}</p>
-                  <div className="truncate text-xs">
-                    <HostCell server={s} />
-                  </div>
-                </div>
-              </div>
-              <AvailabilityBadge availability={s.availability} className="shrink-0" />
-            </div>
-            <dl className="grid grid-cols-3 gap-2 rounded-xl bg-muted/40 p-3 text-xs">
-              <div className="min-w-0">
-                <dt className="text-muted-foreground">Response</dt>
-                <dd className="mt-0.5 font-medium">
-                  <Latency ms={s.latencyMs} />
-                </dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="text-muted-foreground">Checked</dt>
-                <dd className="mt-0.5 truncate font-medium">
-                  <RelativeTime iso={s.lastCheckedAt} fallback="Not yet" />
-                </dd>
-              </div>
-              <div className="min-w-0">
-                <dt className="text-muted-foreground">Remaining</dt>
-                <dd className="mt-0.5">
-                  <Slots capacity={s.capacity} />
-                </dd>
-              </div>
-            </dl>
-            {s.availability === "available" || s.availability === "full" ? <Action server={s} protocolName={protocol.name} block /> : null}
-          </li>
-        ))}
-      </ul>
+        </div>
+      </div>
     </section>
   );
 }

@@ -10,7 +10,7 @@ import { createServer as createHttpServer, type IncomingMessage, type Server as 
 import { createServer as createHttpsServer } from "node:https";
 import { randomBytes, randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
-import { verifySignedRequest } from "../src/server/nodes/signing";
+import { NodeHeaders, verifySignedRequest } from "../src/server/nodes/signing";
 
 export interface MockNodeOptions {
   port?: number;
@@ -33,6 +33,11 @@ export interface MockNodeOptions {
   expiryManagedByNode?: boolean;
   /** ISO country code reported by /info. */
   country?: string;
+  /**
+   * Extra servers sharing this process (demo fleet): HMAC key id → the hostname reported by /info and
+   * used in account configs for requests signed with that key id. Same secret as `keyId`.
+   */
+  virtualHosts?: Record<string, { hostname: string; country?: string }>;
 }
 
 interface MockAccount {
@@ -355,7 +360,7 @@ export async function startMockNode(opts: MockNodeOptions) {
         method,
         path: url,
         body,
-        resolveSecret: (id) => (id === keyId ? opts.secret : undefined),
+        resolveSecret: (id) => (id === keyId || Object.hasOwn(opts.virtualHosts ?? {}, id) ? opts.secret : undefined),
         seenNonce: (n) => {
           if (nonces.has(n)) return true;
           nonces.set(n, now + 600_000);
@@ -367,15 +372,18 @@ export async function startMockNode(opts: MockNodeOptions) {
 
     const route = pathOnly.slice(basePath.length) || "/";
     const json = () => (body ? (JSON.parse(body) as Record<string, unknown>) : {});
+    const signedKeyId = headers[NodeHeaders.keyId];
+    const vhost = signedKeyId && Object.hasOwn(opts.virtualHosts ?? {}, signedKeyId) ? opts.virtualHosts![signedKeyId] : undefined;
+    const host = vhost?.hostname ?? hostname;
 
     if (method === "GET" && route === "/info") {
       return ok(res, {
         api_version: opts.apiVersion ?? "1.0",
         agent_version: opts.agentVersion ?? "1.0.0",
         status: state.maintenance ? "maintenance" : "online",
-        hostname,
+        hostname: host,
         public_ip: publicIp,
-        country: opts.country ?? "SG",
+        country: vhost?.country ?? opts.country ?? "SG",
         server_time: new Date().toISOString(),
         protocols: state.protocols,
         capabilities: {
@@ -451,7 +459,7 @@ export async function startMockNode(opts: MockNodeOptions) {
         status: "active",
         createdAt: new Date(),
         expiresAt: new Date(Date.now() + days * 86_400_000),
-        config: buildConfig(protocol, hostname, publicIp, secrets, {
+        config: buildConfig(protocol, host, publicIp, secrets, {
           username,
           password: typeof input.password === "string" ? input.password : undefined,
           transport: options.transport,

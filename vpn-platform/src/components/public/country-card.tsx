@@ -8,7 +8,7 @@ import { plural } from "./format";
 import { Latency } from "./latency";
 
 /**
- * Country tile on a protocol page: protocol and server-count badges, a large round flag, the
+ * Country tile on a protocol page: protocol and server-count badges, a large squared flag tile, the
  * country name in capitals, live availability, remaining slots and best latency, and a full-width
  * "Get started" button. The whole card is one link (stretched over the card).
  */
@@ -34,31 +34,40 @@ export function CountryCard({
       )}
     >
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-28 bg-gradient-to-b from-accent/70 to-transparent" />
-      <div className="flex items-center justify-between gap-2 p-4 pb-0">
+      {/* Badge row from 480 px; phones show the server count next to the region instead. */}
+      <div className="hidden items-center justify-between gap-2 p-4 pb-0 min-[480px]:flex">
         <span className="max-w-[60%] truncate rounded-full bg-card/80 px-2.5 py-1 text-[11px] font-semibold text-accent-foreground ring-1 ring-primary/15">{protocolName}</span>
         <span className="rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground shadow-sm tabular-nums">
           {plural(c.serverCount, "Server")}
         </span>
       </div>
 
-      <div className="flex flex-col items-center px-5 pt-5 text-center">
-        <span className="flex size-28 items-center justify-center rounded-full bg-background shadow-md ring-1 ring-border">
-          <Flag
-            code={c.code}
-            squared
-            title={c.name}
-            className="size-[4.5rem] rounded-full shadow-md transition-transform duration-500 group-hover:scale-110 motion-reduce:group-hover:scale-100"
+      {/* Phones: flag tile beside the name. From 480 px: big centred tile above it. */}
+      <div className="flex items-center gap-4 px-4 pt-4 min-[480px]:flex-col min-[480px]:gap-0 min-[480px]:px-5 min-[480px]:pt-5 min-[480px]:text-center">
+        <span className="relative flex shrink-0 rounded-[1.2rem] bg-background p-1.5 shadow-lg ring-1 shadow-black/5 ring-border transition-transform duration-500 group-hover:-rotate-2 group-hover:scale-105 motion-reduce:group-hover:rotate-0 motion-reduce:group-hover:scale-100 min-[480px]:rounded-[1.6rem] min-[480px]:p-2">
+          <Flag code={c.code} squared title={c.name} className="size-14 rounded-[0.9rem] shadow-none min-[480px]:size-24 min-[480px]:rounded-[1.15rem]" />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-1.5 rounded-[0.9rem] bg-gradient-to-br from-white/25 via-transparent to-black/10 ring-1 ring-black/5 ring-inset min-[480px]:inset-2 min-[480px]:rounded-[1.15rem]"
           />
         </span>
-        <h3 className="mt-4 text-lg font-bold tracking-wide uppercase">
-          <Link href={c.href} className="outline-none after:absolute after:inset-0 after:rounded-3xl focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50">
-            {c.name}
-          </Link>
-        </h3>
-        <p className="text-xs text-muted-foreground">{c.region ?? " "}</p>
+        <div className="min-w-0 flex-1 min-[480px]:mt-4 min-[480px]:w-full">
+          <h3 className="truncate text-lg font-bold tracking-wide uppercase">
+            <Link href={c.href} className="outline-none after:absolute after:inset-0 after:rounded-3xl focus-visible:after:ring-[3px] focus-visible:after:ring-ring/50">
+              {c.name}
+            </Link>
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            {c.region ?? "\u00a0"}
+            <span className="min-[480px]:hidden">
+              {c.region ? " · " : ""}
+              {plural(c.serverCount, "server")}
+            </span>
+          </p>
+        </div>
       </div>
 
-      <dl className="mx-5 mt-5 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
+      <dl className="mx-4 mt-4 grid grid-cols-2 gap-3 border-t pt-4 text-sm min-[480px]:mx-5 min-[480px]:mt-5">
         <div>
           <dt className="text-[11px] text-muted-foreground">Status</dt>
           <dd className={cn("mt-0.5 flex items-center gap-1.5 font-medium", a.text)}>
@@ -84,7 +93,7 @@ export function CountryCard({
         </div>
       </dl>
 
-      <div className="mt-auto p-5 pt-4">
+      <div className="mt-auto p-4 min-[480px]:p-5 min-[480px]:pt-4">
         <span
           aria-hidden
           className={cn(

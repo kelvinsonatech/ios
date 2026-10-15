@@ -4,7 +4,7 @@ import { BrandMark } from "@/components/brand";
 import { ProtocolIcon } from "@/components/protocol-icon";
 import { mailtoHref, safeHref } from "@/lib/seo";
 import type { PublicSiteSettings, SiteStats } from "@/lib/public/types";
-import type { NavProtocol } from "./services-menu";
+import type { NavProtocol } from "./nav";
 
 const fmt = new Intl.NumberFormat("en-US");
 

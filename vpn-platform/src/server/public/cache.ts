@@ -9,15 +9,19 @@ interface Entry {
 }
 
 const MAX_ENTRIES = 500;
-const g = globalThis as unknown as { __vlPublicCache?: Map<string, Entry> };
+const g = globalThis as unknown as { __vlPublicCache?: Map<string, Entry>; __vlPublicPinned?: Map<string, Entry> };
 
-function store(): Map<string, Entry> {
-  g.__vlPublicCache ??= new Map();
-  return g.__vlPublicCache;
+function store(pinned: boolean): Map<string, Entry> {
+  if (pinned) return (g.__vlPublicPinned ??= new Map());
+  return (g.__vlPublicCache ??= new Map());
 }
 
-export function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
-  const map = store();
+/**
+ * `pinned` entries (a handful of fixed keys such as the shared snapshot) live in their own map and are
+ * never evicted, so a flood of distinct URL-derived keys cannot force the expensive loads to repeat.
+ */
+export function cached<T>(key: string, ttlMs: number, load: () => Promise<T>, opts: { pinned?: boolean } = {}): Promise<T> {
+  const map = store(!!opts.pinned);
   const hit = map.get(key);
   if (hit && Date.now() - hit.at < ttlMs) return hit.value as Promise<T>;
   const value = load();
@@ -38,5 +42,6 @@ export function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): P
 
 /** Forget every cached result (tests, and after admin changes that must show immediately). */
 export function clearPublicCache() {
-  store().clear();
+  store(false).clear();
+  store(true).clear();
 }

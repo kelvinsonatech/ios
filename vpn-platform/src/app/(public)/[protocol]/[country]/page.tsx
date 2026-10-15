@@ -10,7 +10,7 @@ import { formatDays, plural } from "@/components/public/format";
 import { JsonLd } from "@/components/public/json-ld";
 import { HeroChip, PageHeader } from "@/components/public/page-header";
 import { Countdown } from "@/components/public/live-time";
-import { Container, EmptyState, SectionHeading } from "@/components/public/section";
+import { Container, EmptyState, SERVER_GRID, SectionHeading } from "@/components/public/section";
 import { ServerCard } from "@/components/public/server-card";
 import { absoluteUrl, pageMetadata, siteOrigin } from "@/lib/seo";
 import { loadCountryPage, loadSettings } from "../../_lib/data";
@@ -110,7 +110,7 @@ export default async function CountryPage({ params }: Props) {
               </Link>
             </EmptyState>
           ) : (
-            <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className={SERVER_GRID}>
               {servers.map((s, i) => (
                 <ServerCard
                   key={s.id}

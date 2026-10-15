@@ -48,12 +48,20 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-/** A handful of live, open servers for the hero chips and the status strip (best ping first). */
-function liveEntries(status: StatusPageData | null, limit: number): { server: PublicServerCard; protocol: string; protocolIcon: string }[] {
+type LiveEntry = { server: PublicServerCard; protocol: string; protocolIcon: string };
+
+/**
+ * A handful of live servers for the hero chips and the status strip: open ones first, best ping
+ * first, and each server once before any server repeats with another protocol (variety over ping).
+ */
+function liveEntries(status: StatusPageData | null, limit: number): LiveEntry[] {
   if (!status) return [];
-  const all = status.sections.flatMap((s) => s.servers.map((server) => ({ server, protocol: s.protocol.name, protocolIcon: s.protocol.icon })));
-  const rank = (a: (typeof all)[number]) => (a.server.availability === "available" ? 0 : a.server.availability === "full" ? 1 : 2);
-  return all.sort((a, b) => rank(a) - rank(b) || (a.server.latencyMs ?? 9e9) - (b.server.latencyMs ?? 9e9)).slice(0, limit);
+  const all: LiveEntry[] = status.sections.flatMap((s) => s.servers.map((server) => ({ server, protocol: s.protocol.name, protocolIcon: s.protocol.icon })));
+  const rank = (a: LiveEntry) => (a.server.availability === "available" ? 0 : a.server.availability === "full" ? 1 : 2);
+  const sorted = all.sort((a, b) => rank(a) - rank(b) || (a.server.latencyMs ?? 9e9) - (b.server.latencyMs ?? 9e9));
+  const seen = new Set<string>();
+  const firsts = sorted.filter((e) => !seen.has(e.server.id) && seen.add(e.server.id));
+  return [...firsts, ...sorted.filter((e) => !firsts.includes(e))].slice(0, limit);
 }
 
 const STEPS = [
@@ -76,7 +84,11 @@ export default async function HomePage() {
   const resetText = `${joinTimes(settings.quota.resetTimes)} (${zoneLabel(settings.quota.timezone)})`;
 
   const sampleEntry = live[0];
-  const heroServers: HeroArtServer[] = live.slice(0, 2).map((e) => ({
+  const heroCountries = new Set<string>();
+  const heroServers: HeroArtServer[] = live
+    .filter((e) => e.server.availability === "available" && !heroCountries.has(e.server.country.code) && heroCountries.add(e.server.country.code))
+    .slice(0, 2)
+    .map((e) => ({
     key: `${e.protocol}-${e.server.id}`,
     name: e.server.name,
     protocol: e.protocol,
@@ -344,14 +356,15 @@ export default async function HomePage() {
             </div>
             <div aria-hidden className="relative">
               <div className="absolute inset-0 -z-0 rounded-full bg-[radial-gradient(closest-side,color-mix(in_oklch,var(--primary)_18%,transparent),transparent)]" />
-              <ul className="relative grid grid-cols-4 gap-3 sm:gap-4">
+              <ul className="relative grid grid-cols-4 gap-2 sm:gap-4">
                 {profiles.map((p, i) => (
                   <li
                     key={p.seed}
-                    className="flex animate-in flex-col items-center gap-2 rounded-2xl border bg-background/80 p-3 shadow-sm duration-500 fade-in fill-mode-both zoom-in-90"
+                    className="flex min-w-0 animate-in flex-col items-center gap-2 rounded-2xl border bg-background/80 px-1 py-3 shadow-sm duration-500 fade-in fill-mode-both zoom-in-90 sm:p-3"
                     style={{ animationDelay: `${i * 70}ms` }}
                   >
-                    <UserAvatar src={p.src} size={56} className="size-12 sm:size-14" />
+                    {/* UserAvatar sizes itself inline; 52 px fits the narrowest (360 px) grid cell. */}
+                    <UserAvatar src={p.src} size={52} />
                     <span className="max-w-full truncate text-[11px] font-medium text-muted-foreground">{p.seed}</span>
                   </li>
                 ))}

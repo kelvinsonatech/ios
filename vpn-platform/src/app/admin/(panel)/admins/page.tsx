@@ -19,14 +19,14 @@ export default async function AdminsPage() {
   return (
     <>
       <PageHeader title="Administrators" description="Who can access the admin panel, and what they can do." />
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="py-0 lg:col-span-2">
+      <div className="grid items-start gap-6 lg:grid-cols-3">
+        <Card className="min-w-0 py-0 lg:col-span-2">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Administrator</TableHead>
                 <TableHead>Role</TableHead>
-                <TableHead>2FA</TableHead>
+                <TableHead className="hidden sm:table-cell">2FA</TableHead>
                 <TableHead className="hidden md:table-cell">Last sign-in</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
@@ -43,6 +43,7 @@ export default async function AdminsPage() {
                           {a.id === me.id ? <Badge variant="info">You</Badge> : null}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">{a.email}</span>
+                        <span className={`text-xs sm:hidden ${a.mfaEnabled ? "text-success" : "text-warning"}`}>2FA {a.mfaEnabled ? "on" : "off"}</span>
                       </span>
                     </span>
                   </TableCell>
@@ -51,7 +52,7 @@ export default async function AdminsPage() {
                     {!a.isActive ? <Badge variant="muted" className="ml-1">Inactive</Badge> : null}
                     {a.lockedUntil && a.lockedUntil > new Date() ? <Badge variant="warning" className="ml-1">Locked</Badge> : null}
                   </TableCell>
-                  <TableCell>{a.mfaEnabled ? <Badge variant="success">On</Badge> : <Badge variant="warning">Off</Badge>}</TableCell>
+                  <TableCell className="hidden sm:table-cell">{a.mfaEnabled ? <Badge variant="success">On</Badge> : <Badge variant="warning">Off</Badge>}</TableCell>
                   <TableCell className="hidden text-sm md:table-cell">
                     <RelativeTime date={a.lastLoginAt} />
                   </TableCell>
@@ -63,7 +64,7 @@ export default async function AdminsPage() {
             </TableBody>
           </Table>
         </Card>
-        <Card>
+        <Card className="min-w-0">
           <CardHeader>
             <CardTitle>Roles</CardTitle>
           </CardHeader>
@@ -76,7 +77,7 @@ export default async function AdminsPage() {
             ))}
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader>
             <CardTitle>Add administrator</CardTitle>
             <CardDescription>Give each person their own account — never share credentials.</CardDescription>

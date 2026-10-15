@@ -4,12 +4,12 @@ import { CopyButton } from "@/components/copy-button";
 import { ProtocolIcon } from "@/components/protocol-icon";
 import { cn } from "@/lib/utils";
 import type { Availability, PublicServerCard } from "@/lib/public/types";
-import { AvailabilityBadge } from "./availability-badge";
+import { AVAILABILITY, AvailabilityBadge } from "./availability-badge";
 import { Flag } from "./flag";
 import { formatDays } from "./format";
 import { Latency } from "./latency";
 import { Countdown, RelativeTime } from "./live-time";
-import { PortRows, transportLabel } from "./port-rows";
+import { describePorts, transportLabel } from "./port-rows";
 import { RemainingMeter } from "./remaining-meter";
 
 const UNAVAILABLE: Record<Exclude<Availability, "available">, { label: string; reason: string; icon: React.ReactNode }> = {
@@ -20,9 +20,10 @@ const UNAVAILABLE: Record<Exclude<Availability, "available">, { label: string; r
 };
 
 /**
- * Server card on a country page: protocol badge and live status, name and location, host, ports
- * (labelled per key), transports, validity, latency with "checked … ago", remaining slots with the
- * quota reset countdown, and the "Create account" button (disabled with the reason when the server
+ * Server card on a country page: protocol badge and live status, name and location, then one
+ * labelled row each for the host, location, every service port ("SSH 22", "Dropbear 109, 143",
+ * "UDP 6000-19999"), transports, validity and status with latency ("checked … ago"), remaining slots
+ * with the quota reset countdown, and the "Create account" button (disabled with the reason when the server
  * cannot take new accounts). Other protocols on the same server are linked underneath.
  */
 export function ServerCard({
@@ -39,6 +40,8 @@ export function ServerCard({
   const available = s.availability === "available";
   const blocked = s.availability === "available" ? null : UNAVAILABLE[s.availability];
   const location = [s.city, s.country.name].filter(Boolean).join(", ");
+  const ports = describePorts(s.ports);
+  const status = AVAILABILITY[s.availability];
 
   return (
     <article
@@ -66,7 +69,7 @@ export function ServerCard({
         </p>
       </div>
 
-      <dl className="relative mt-5 space-y-3 px-5 text-sm">
+      <dl className="relative mt-5 divide-y divide-border/60 px-5 text-sm">
         <Row icon={<ServerIcon />} label="Host">
           {s.hostname ? (
             <span className="flex min-w-0 items-center gap-1">
@@ -76,36 +79,46 @@ export function ServerCard({
               <CopyButton value={s.hostname} label={`Copy host ${s.hostname}`} />
             </span>
           ) : (
-            <span className="font-medium">{s.city ?? s.country.name}</span>
+            <span className="truncate font-medium">{s.city ?? s.country.name}</span>
           )}
         </Row>
         <Row icon={<MapPinIcon />} label="Location">
-          <span className="font-medium">{location}</span>
+          <span className="truncate font-medium">{location}</span>
         </Row>
+        {ports.length > 0 ? (
+          ports.map((r) => (
+            <Row key={r.key} icon={<r.icon />} label={r.label}>
+              <span className="truncate font-mono text-[0.8rem] font-semibold" title={r.value}>
+                {r.value}
+              </span>
+            </Row>
+          ))
+        ) : (
+          <Row icon={<CableIcon />} label="Ports">
+            <span className="text-muted-foreground">Shown with your account</span>
+          </Row>
+        )}
         {s.transports.length > 0 ? (
           <Row icon={<CableIcon />} label="Transport">
-            <span className="font-medium">{s.transports.map(transportLabel).join(", ")}</span>
+            <span className="truncate font-medium">{s.transports.map(transportLabel).join(", ")}</span>
           </Row>
         ) : null}
-        <div className="flex items-start gap-3">
-          <dt className="flex w-24 shrink-0 items-center gap-2 pt-1 text-muted-foreground [&_svg]:size-4 [&_svg]:text-primary">
-            <CableIcon />
-            Ports
-          </dt>
-          <dd className="min-w-0 flex-1">
-            <PortRows ports={s.ports} max={8} className="justify-end" />
-          </dd>
-        </div>
         <Row icon={<ClockIcon />} label="Validity">
           <span className="font-medium">{formatDays(protocol.durationOptions)}</span>
         </Row>
-        <Row icon={<GaugeIcon />} label="Ping">
-          <span className="flex flex-wrap items-baseline gap-x-2">
+        <Row icon={<GaugeIcon />} label="Status">
+          <span className="flex min-w-0 flex-wrap items-center justify-end gap-x-2">
+            <span className={cn("inline-flex items-center gap-1.5 font-medium", status.text)}>
+              <span className={cn("size-2 rounded-full", status.dot)} aria-hidden />
+              {status.label}
+            </span>
             <Latency ms={s.latencyMs} className="font-medium" />
-            <RelativeTime iso={s.lastCheckedAt} prefix="checked" fallback="not checked yet" className="text-xs text-muted-foreground" />
           </span>
         </Row>
       </dl>
+      <p className="relative mt-1 px-5 text-right text-[11px] text-muted-foreground">
+        <RelativeTime iso={s.lastCheckedAt} prefix="Checked" fallback="Not checked yet" />
+      </p>
 
       <div className="relative mx-5 mt-5 rounded-2xl bg-muted/60 p-3">
         <div className="mb-1 flex items-center justify-between text-[11px] text-muted-foreground">
@@ -165,10 +178,11 @@ export function ServerCard({
   );
 }
 
+/** One labelled line of the card ("SSL" … "443, 777"); values align right and truncate. */
 function Row({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-center gap-3">
-      <dt className="flex w-24 shrink-0 items-center gap-2 text-muted-foreground [&_svg]:size-4 [&_svg]:text-primary">
+    <div className="flex min-h-10 items-center gap-3 py-1.5">
+      <dt className="flex shrink-0 items-center gap-2 text-muted-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-primary">
         {icon}
         {label}
       </dt>
