@@ -34,7 +34,7 @@ export function SiteHeader({ siteName, protocols }: { siteName: string; protocol
       className={cn(
         "sticky top-0 z-40 border-b transition-[background-color,box-shadow,border-color] duration-300",
         scrolled
-          ? "border-border/70 bg-background/80 shadow-[0_8px_30px_-12px_rgb(0_0_0/0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/65"
+          ? "border-border/70 bg-background/95 shadow-[0_8px_30px_-12px_rgb(0_0_0/0.18)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/85"
           : "border-transparent bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/80",
       )}
     >
