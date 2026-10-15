@@ -229,7 +229,7 @@ function PasswordInput({
           disabled={disabled}
           aria-invalid={!!error || undefined}
           aria-describedby={describedBy(field, error)}
-          className="h-11 pr-11 font-mono text-[15px] sm:text-sm"
+          className="h-11 pr-11 font-mono text-base sm:text-sm"
         />
         <button
           type="button"
@@ -351,7 +351,7 @@ function FieldControl({
         disabled={disabled}
         aria-invalid={!!error || undefined}
         aria-describedby={describedBy(field, error)}
-        className={cn("h-11 text-[15px] sm:text-sm", (isUser || field.key === "sni_bug") && "font-mono")}
+        className={cn("h-11 text-base sm:text-sm", (isUser || field.key === "sni_bug") && "font-mono")}
       />
     </FieldShell>
   );

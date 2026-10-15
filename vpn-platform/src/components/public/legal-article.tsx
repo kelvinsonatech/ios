@@ -43,7 +43,7 @@ export function LegalArticle({
       <article className="min-w-0 rounded-3xl border bg-card p-6 shadow-sm sm:p-10">
         {reviewNotice ? (
           <p className="mb-8 flex items-start gap-3 rounded-2xl bg-warning-soft p-4 text-sm text-foreground">
-            <FileWarningIcon className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+            <FileWarningIcon className="mt-0.5 size-4 shrink-0 text-warning-strong" aria-hidden />
             <span>
               <strong className="font-semibold">Template text.</strong> This page is a starting point written for this service and must be reviewed
               (and adapted to your jurisdiction) by the operator before launch.

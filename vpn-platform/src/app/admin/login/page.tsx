@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { readSessionCookie } from "@/server/auth/cookies";
 import { validateSessionToken } from "@/server/auth/session";
 import { LoginForm } from "./login-form";
@@ -13,7 +13,7 @@ export default async function LoginPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Sign in</CardTitle>
+        <h1 data-slot="card-title" className="text-xl leading-none font-semibold">Sign in</h1>
         <CardDescription>Administrator access to servers, protocols and accounts.</CardDescription>
       </CardHeader>
       <CardContent>

@@ -111,7 +111,7 @@ export default async function HomePage() {
     },
     {
       q: "Why are my details shown only once?",
-      a: "Your password, keys and config files are generated on the server and handed to your browser exactly once. We do not keep a copy, so nobody (including us) can read them later. Copy them or download the file before you leave the page.",
+      a: "Your password, keys and config files are generated on the server and handed to your browser as an encrypted one-time result. We keep that encrypted result for at most an hour, so reloading the page does not lose it, then erase it; it is never written to logs. Copy them or download the file before you leave the page.",
     },
     {
       q: "Which protocol should I choose?",
@@ -166,8 +166,8 @@ export default async function HomePage() {
               {settings.tagline || "Private tunnels, provisioned in seconds."}
             </h1>
             <p className="mx-auto mt-5 max-w-xl text-base text-pretty text-white/85 sm:text-lg lg:mx-0">
-              Free SSH, V2Ray, Trojan, Hysteria and UDP accounts on fast servers around the world. Created on the server in seconds, shown to you once,
-              never stored.
+              Free SSH, V2Ray, Trojan, Hysteria and UDP accounts on fast servers around the world. Created on the server in seconds, delivered once to your
+              browser and erased from our side within an hour.
             </p>
             <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center lg:justify-start">
               <Link href={primaryHref} className={heroPrimaryButton}>

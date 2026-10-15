@@ -127,7 +127,7 @@ export async function syncServerAction(id: string): Promise<ActionState> {
     refresh(serverId);
     if (!result.ok) return { error: result.error?.message ?? "Synchronisation failed.", data: { sync: JSON.parse(JSON.stringify(result)) } };
     const summary = [
-      `${result.protocols.filter((p) => p.detected).length} protocol(s) detected`,
+      ((n) => `${n} protocol${n === 1 ? "" : "s"} detected`)(result.protocols.filter((p) => p.detected).length),
       result.added.length ? `new: ${result.added.join(", ")}` : null,
       result.removed.length ? `missing: ${result.removed.join(", ")}` : null,
     ]

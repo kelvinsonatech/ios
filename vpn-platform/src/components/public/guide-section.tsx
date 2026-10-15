@@ -27,7 +27,7 @@ export function GuideSection({ guide, protocolName, className }: { guide: Protoc
         {guide.tips.length > 0 ? (
           <div className="mt-7 rounded-2xl bg-warning-soft/60 p-4">
             <p className="flex items-center gap-2 text-sm font-semibold">
-              <LightbulbIcon className="size-4 text-warning" aria-hidden />
+              <LightbulbIcon className="size-4 text-warning-strong" aria-hidden />
               Tips
             </p>
             <ul className="mt-2 space-y-1.5 text-sm text-muted-foreground">

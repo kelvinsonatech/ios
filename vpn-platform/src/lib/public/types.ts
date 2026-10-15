@@ -127,6 +127,7 @@ export interface ServerPageData {
 
 export interface StatusPageData {
   generatedAt: string;
+  /** Server counts by status; `full` counts services (server + protocol) that are full right now. */
   totals: { protocols: number; servers: number; online: number; offline: number; maintenance: number; full: number };
   /** One section per enabled protocol, servers ordered by country then name. */
   sections: { protocol: Pick<PublicProtocolSummary, "slug" | "name" | "icon" | "href">; servers: PublicServerCard[] }[];

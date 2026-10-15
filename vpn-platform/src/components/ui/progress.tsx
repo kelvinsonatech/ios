@@ -16,6 +16,7 @@ function Progress({
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round(pct)}
+      aria-label={`${Math.round(pct)}% used`}
       className={cn("relative h-1.5 w-full overflow-hidden rounded-full bg-muted", className)}
       {...props}
     >

@@ -55,7 +55,7 @@ export function AdminNav({ allowed, badges, onNavigate }: { allowed: NavKey[]; b
             {item.label}
             {badge ? (
               <span
-                className="ml-auto min-w-5 rounded-full bg-warning-soft px-1.5 py-px text-center text-[11px] font-semibold text-warning tabular-nums"
+                className="ml-auto min-w-5 rounded-full bg-warning-soft px-1.5 py-px text-center text-[11px] font-semibold text-warning-strong tabular-nums"
                 aria-label={`${badge} open`}
               >
                 {badge > 99 ? "99+" : badge}

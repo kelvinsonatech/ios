@@ -161,7 +161,7 @@ const SECTIONS = [
 const TONES: { value: Tone; label: string; icon: React.ComponentType<{ className?: string }>; bar: string }[] = [
   { value: "info", label: "Info", icon: InfoIcon, bar: "border-info/30 bg-info-soft text-info" },
   { value: "success", label: "Good news", icon: CheckCircle2Icon, bar: "border-success/30 bg-success-soft text-success" },
-  { value: "warning", label: "Warning", icon: TriangleAlertIcon, bar: "border-warning/30 bg-warning-soft text-warning" },
+  { value: "warning", label: "Warning", icon: TriangleAlertIcon, bar: "border-warning/30 bg-warning-soft text-warning-strong" },
 ];
 
 const RESET_PRESETS: { label: string; times: string[] }[] = [
@@ -327,10 +327,17 @@ export function SettingsForm({
   // Highlight the section in view in the side navigation.
   useEffect(() => {
     const els = SECTIONS.map((s) => document.getElementById(s.id)).filter((x): x is HTMLElement => !!x);
+    // Each callback only reports the sections whose visibility changed, so keep the full set and
+    // highlight the first visible section in page order.
+    const inView = new Set<string>();
     const io = new IntersectionObserver(
       (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
-        if (visible[0]) setActiveSection(visible[0].target.id);
+        for (const e of entries) {
+          if (e.isIntersecting) inView.add(e.target.id);
+          else inView.delete(e.target.id);
+        }
+        const first = SECTIONS.find((s) => inView.has(s.id));
+        if (first) setActiveSection(first.id);
       },
       { rootMargin: "-72px 0px -55% 0px" },
     );
@@ -596,7 +603,7 @@ export function SettingsForm({
           id="quotas"
           icon={ClockIcon}
           title="Quotas & resets"
-          description="Each server and protocol can have a creation quota (set per server under Servers → Protocols). Every quota starts again at these local times."
+          description="Each server and protocol can have a creation quota (set per server under Servers → Protocols). Every quota starts again at these local times. Changing the times or the time zone starts a new period right away, so every slot counter goes back to zero."
         >
           <div className="grid gap-5 md:grid-cols-2">
             <div className="grid content-start gap-2">

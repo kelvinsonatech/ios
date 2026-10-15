@@ -234,7 +234,7 @@ export function StatusBoard({
         </Button>
       </div>
 
-      {data ? <StatusSummary totals={data.totals} /> : null}
+      {data ? <StatusSummary data={data} /> : null}
 
       <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
         <TimerIcon className="size-4 text-primary" aria-hidden />

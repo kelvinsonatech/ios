@@ -9,6 +9,7 @@ import { hashPassword, passwordPolicyErrors, verifyPassword } from "@/server/aut
 import { generateMfaSecret, generateRecoveryCodes, totpFor, verifyTotp } from "@/server/auth/mfa";
 import { revokeAllSessions, revokeSession } from "@/server/auth/session";
 import { siteConfig } from "@/lib/site";
+import { getSiteSettings } from "@/server/settings/service";
 
 export async function listAdmins() {
   return db()
@@ -128,7 +129,10 @@ export async function beginMfaSetup(admin: Admin) {
     .update(admins)
     .set({ mfaSecretEncrypted: encryptSecret(secret, EncryptionContext.mfaSecret(admin.id)) })
     .where(eq(admins.id, admin.id));
-  const uri = totpFor(secret, admin.email, siteConfig.name).toString();
+  const issuer = await getSiteSettings()
+    .then((s) => s.siteName)
+    .catch(() => siteConfig.name);
+  const uri = totpFor(secret, admin.email, issuer).toString();
   return { secret, uri };
 }
 

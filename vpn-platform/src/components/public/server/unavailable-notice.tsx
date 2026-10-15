@@ -47,9 +47,9 @@ export function UnavailableNotice({
 }) {
   const r = REASONS[availability];
   return (
-    <div className="rounded-xl border border-warning/30 bg-warning-soft/60 p-4 sm:p-5" role="status">
+    <div className="rounded-xl border border-warning/30 bg-warning-soft/60 p-4 sm:p-5">
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 text-warning [&_svg]:size-5" aria-hidden>
+        <span className="mt-0.5 text-warning-strong [&_svg]:size-5" aria-hidden>
           {r.icon}
         </span>
         <div className="min-w-0">

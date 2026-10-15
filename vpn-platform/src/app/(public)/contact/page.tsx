@@ -98,7 +98,7 @@ export default async function ContactPage() {
         </div>
 
         <div className="mt-6 flex items-start gap-3 rounded-2xl border bg-card p-4 text-sm text-muted-foreground shadow-sm sm:p-5">
-          <ShieldAlertIcon className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
+          <ShieldAlertIcon className="mt-0.5 size-5 shrink-0 text-warning-strong" aria-hidden />
           <p className="text-pretty">
             <strong className="font-semibold text-foreground">Never send us your password, keys or config.</strong> We will never ask for them, and
             we cannot see them either: account details are shown to you once and are not stored on our side.

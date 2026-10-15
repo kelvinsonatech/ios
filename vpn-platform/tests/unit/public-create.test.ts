@@ -62,10 +62,10 @@ describe("account form validation (mirrors the server guards)", () => {
     expect(validateField(USERNAME, "a".repeat(33), SSH)).toMatch(/at most 32/);
   });
 
-  it("allows remark-style names for V2Ray-family protocols", () => {
-    expect(validateField(USERNAME, "kopi-o", VLESS)).toBeNull();
-    expect(validateField(USERNAME, "liberty.run", VLESS)).toBeNull();
-    expect(validateField(USERNAME, "-dash", VLESS)).toMatch(/start with a letter or digit/);
+  it("uses the node API's username rule for V2Ray-family protocols too", () => {
+    expect(validateField(USERNAME, "kopi_o", VLESS)).toBeNull();
+    expect(validateField(USERNAME, "liberty.run", VLESS)).toMatch(/lowercase letters, digits or _/);
+    expect(validateField(USERNAME, "1dash", VLESS)).toMatch(/Start with a letter/);
   });
 
   it("checks passwords, durations and selects", () => {
@@ -106,8 +106,8 @@ describe("account form validation (mirrors the server guards)", () => {
   it("preselects defaults and only sends filled fields", () => {
     const values = initialValues(VLESS);
     expect(values).toEqual({ username: "", transport: "ws", sni_bug: "", sni_type: "sni", duration: "7" });
-    expect(validateAll(VLESS.fields, { ...values, username: "kopi-o" }, VLESS)).toEqual({});
-    expect(toRequestInput(VLESS.fields, { ...values, username: " kopi-o " })).toEqual({ username: "kopi-o", transport: "ws", sni_type: "sni", duration: "7" });
+    expect(validateAll(VLESS.fields, { ...values, username: "kopi_o" }, VLESS)).toEqual({});
+    expect(toRequestInput(VLESS.fields, { ...values, username: " kopi_o " })).toEqual({ username: "kopi_o", transport: "ws", sni_type: "sni", duration: "7" });
   });
 });
 
@@ -143,6 +143,12 @@ describe("friendly API errors", () => {
     expect(quota).toMatchObject({ code: "QUOTA_REACHED", resetsAt: "2026-10-15T17:00:00.000Z", suggestOtherServer: true });
     const limited = friendlyError(new ApiError(429, "RATE_LIMITED", "x", { retryAfterSeconds: 30 }), ctx);
     expect(Date.parse(limited.retryAt!)).toBeGreaterThan(Date.now());
+    expect(limited.title).toMatch(/slow down/i);
+    const daily = friendlyError(
+      new ApiError(429, "RATE_LIMITED", "You have reached today's limit of 3 SSH accounts.", { retryAfterSeconds: 36_000, limitScope: "daily" }),
+      ctx,
+    );
+    expect(daily).toMatchObject({ title: "Daily limit reached", message: "You have reached today's limit of 3 SSH accounts." });
     expect(friendlyError(new ApiError(409, "CAPACITY_REACHED", "x"), ctx).message).toContain("Germany 01");
     expect(friendlyError(new ApiError(403, "CAPTCHA_FAILED", "x"), ctx).title).toMatch(/security check/i);
   });

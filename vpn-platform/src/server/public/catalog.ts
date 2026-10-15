@@ -418,7 +418,8 @@ export async function getStatusPage(): Promise<StatusPageData> {
         online: count("online"),
         offline: count("offline"),
         maintenance: count("maintenance"),
-        full: count("full"),
+        // Services (server + protocol) that cannot take accounts right now because they are full.
+        full: sections.reduce((n, s) => n + s.servers.filter((c) => c.availability === "full").length, 0),
       },
       sections,
     };

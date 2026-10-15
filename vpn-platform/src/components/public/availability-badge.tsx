@@ -4,7 +4,7 @@ import type { Availability } from "@/lib/public/types";
 export const AVAILABILITY: Record<Availability, { label: string; dot: string; text: string; soft: string }> = {
   available: { label: "Online", dot: "bg-success", text: "text-success", soft: "bg-success-soft" },
   full: { label: "Full", dot: "bg-info", text: "text-info", soft: "bg-info-soft" },
-  maintenance: { label: "Maintenance", dot: "bg-warning", text: "text-warning", soft: "bg-warning-soft" },
+  maintenance: { label: "Maintenance", dot: "bg-warning", text: "text-warning-strong", soft: "bg-warning-soft" },
   offline: { label: "Offline", dot: "bg-destructive", text: "text-destructive", soft: "bg-danger-soft" },
   service_stopped: { label: "Unavailable", dot: "bg-destructive", text: "text-destructive", soft: "bg-danger-soft" },
 };

@@ -61,7 +61,7 @@ function Expiry({ iso, status }: { iso: string | null; status: AccountView["stat
   if (!iso) return <span className="text-muted-foreground">—</span>;
   const left = status === "active" ? msUntil(iso) : null;
   // An active account past its expiry means the expiry job has not caught up yet.
-  const tone = left === null ? "text-muted-foreground" : left < 0 ? "text-destructive" : left < 86_400_000 ? "text-warning" : undefined;
+  const tone = left === null ? "text-muted-foreground" : left < 0 ? "text-destructive" : left < 86_400_000 ? "text-warning-strong" : undefined;
   return (
     <span className={cn(tone)}>
       <RelativeTime date={iso} />
@@ -123,7 +123,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
               )}
             >
               {t.label}
-              <span className="text-xs tabular-nums opacity-80">{formatNumber(t.n)}</span>
+              <span className="text-xs tabular-nums">{formatNumber(t.n)}</span>
             </Link>
           );
         })}
@@ -217,7 +217,9 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Expires</TableHead>
-                  <TableHead className="w-10" />
+                  <TableHead className="w-10">
+                    <span className="sr-only">Avatar</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

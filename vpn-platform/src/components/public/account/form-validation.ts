@@ -12,7 +12,8 @@ const CONTROL = /[\u0000-\u001F\u007F]/;
  * Shadowsocks. Usernames are lower-cased while typing, so only the lowercase forms matter here.
  */
 const LINUX_USERNAME = /^[a-z][a-z0-9_]*$/;
-const REMARK_USERNAME = /^[a-z0-9][a-z0-9_.-]*$/;
+/** Xray-family account names follow the same rule as Linux usernames (the node API checks both alike). */
+const REMARK_USERNAME = /^[a-z][a-z0-9_]*$/;
 const PASSWORD_CHARS = /^[A-Za-z0-9@#%^*_+=.,:~-]*$/;
 const BUG_HOST = /^(?=.{3,128}$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 const REMARK_PROTOCOLS = new Set(["shadowsocks", "wireguard"]);
@@ -85,7 +86,7 @@ export function validateField(f: PublicFormField, raw: string, protocol: Validat
   if (value.length > max) return `Use at most ${max} characters.`;
   if (f.key === "username") {
     if (usesRemarkNames(protocol)) {
-      if (!REMARK_USERNAME.test(value)) return "Use letters, digits, _ . or - and start with a letter or digit.";
+      if (!REMARK_USERNAME.test(value)) return /^[a-z]/.test(value) ? "Use lowercase letters, digits or _ only." : "Start with a letter (a–z).";
     } else if (!LINUX_USERNAME.test(value)) {
       return /^[a-z]/.test(value) ? "Use lowercase letters, digits or _ only." : "Start with a letter (a–z).";
     }

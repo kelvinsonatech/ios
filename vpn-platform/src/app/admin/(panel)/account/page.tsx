@@ -42,7 +42,7 @@ export default async function AccountPage() {
               <span>
                 Avatar style: {style.label}.{" "}
                 {can(admin.role, "settings:manage") ? (
-                  <Link href="/admin/settings#avatars" className="text-primary underline-offset-4 hover:underline">
+                  <Link href="/admin/settings#avatars" className="text-primary underline underline-offset-4">
                     Change for everyone
                   </Link>
                 ) : (

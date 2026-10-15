@@ -36,7 +36,9 @@ export function UserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2 px-1.5" aria-label="Account menu">
+        <Button variant="ghost" size="sm" className="gap-2 px-1.5">
+          <span className="sr-only">Account menu: </span>
+          <span className="sr-only sm:hidden">{name}</span>
           {avatar ? (
             <UserAvatar src={avatar} size={28} />
           ) : (

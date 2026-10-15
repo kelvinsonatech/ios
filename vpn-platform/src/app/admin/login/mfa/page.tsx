@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { readSessionCookie } from "@/server/auth/cookies";
 import { validateSessionToken } from "@/server/auth/session";
 import { logoutAction } from "../actions";
@@ -15,7 +15,7 @@ export default async function MfaPage() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Two-factor authentication</CardTitle>
+        <h1 data-slot="card-title" className="text-xl leading-none font-semibold">Two-factor authentication</h1>
         <CardDescription>Signed in as {s.admin.email}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">

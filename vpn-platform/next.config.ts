@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
       allowedOrigins: process.env.SERVER_ACTIONS_ALLOWED_ORIGINS?.split(",").filter(Boolean),
     },
   },
+  // Browsers ask for /favicon.ico on their own; serve the SVG icon instead of a 404.
+  async rewrites() {
+    return [{ source: "/favicon.ico", destination: "/icon.svg" }];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

@@ -30,15 +30,16 @@ export async function countReportsByStatus(): Promise<Record<ReportStatus, numbe
 
 export async function getDashboardData() {
   const now = new Date();
-  const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-  const twoWeeksAgo = new Date(startOfDay.getTime() - 13 * 86_400_000);
-  // "Created today" follows the site's quota time zone, so it matches the day users see on the public site.
+  // Days, the month and the 14-day chart all follow the site's quota time zone, so they match the
+  // day users see on the public site and the "Created today" card agrees with the chart's last bar.
   const { timezone } = (await getSiteSettings()).quota;
   const localDay = startOfLocalDay(now, timezone);
+  const todayLabel = new Intl.DateTimeFormat("en-CA", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
+  // Two hours of slack cover a DST change inside the window; the chart only keeps its 14 local days.
+  const twoWeeksAgo = new Date(localDay.getTime() - 13 * 86_400_000 - 2 * 3_600_000);
   // Raw sql fragments need explicit timestamptz parameters (Dates are only mapped for column operators).
   const dayTs = sql`${localDay.toISOString()}::timestamptz`;
-  const monthTs = sql`${startOfMonth.toISOString()}::timestamptz`;
+  const monthTs = sql`(date_trunc('month', now() at time zone ${timezone}) at time zone ${timezone})`;
 
   const [statusCounts, accountCounts, protocolUsage, capacity, recentErrors, activity, trend, reports, latestAccounts] = await Promise.all([
     db()
@@ -107,7 +108,7 @@ export async function getDashboardData() {
       .limit(12),
     db()
       .select({
-        day: sql<string>`to_char(date_trunc('day', ${vpnAccounts.activatedAt} at time zone 'UTC'), 'YYYY-MM-DD')`,
+        day: sql<string>`to_char(${vpnAccounts.activatedAt} at time zone ${timezone}, 'YYYY-MM-DD')`,
         count: sql<number>`count(*)::int`,
       })
       .from(vpnAccounts)
@@ -135,8 +136,9 @@ export async function getDashboardData() {
   const byStatus = Object.fromEntries(statusCounts.map((r) => [r.status, r.count])) as Record<string, number>;
   const totalServers = statusCounts.reduce((a, r) => a + r.count, 0);
   const trendMap = new Map(trend.map((t) => [t.day, t.count]));
+  const todayUtc = Date.parse(`${todayLabel}T00:00:00Z`);
   const days = Array.from({ length: 14 }, (_, i) => {
-    const d = new Date(twoWeeksAgo.getTime() + i * 86_400_000).toISOString().slice(0, 10);
+    const d = new Date(todayUtc - (13 - i) * 86_400_000).toISOString().slice(0, 10);
     return { day: d, count: trendMap.get(d) ?? 0 };
   });
 

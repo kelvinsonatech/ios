@@ -70,7 +70,9 @@ export default async function ServersPage() {
                 <TableHead className="hidden sm:table-cell">Accounts</TableHead>
                 <TableHead className="hidden lg:table-cell">Protocols</TableHead>
                 <TableHead className="hidden md:table-cell">Last check</TableHead>
-                <TableHead className="w-10" />
+                <TableHead className="w-10">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

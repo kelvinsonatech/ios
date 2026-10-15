@@ -273,7 +273,7 @@ export function CreateAccountPanel({
               </Button>
               <p className="flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
                 <ShieldCheckIcon className="size-3.5 text-primary" aria-hidden />
-                Your password and keys are shown once and never stored.
+                Your password and keys are shown once; our encrypted copy is erased within an hour.
               </p>
             </div>
           </form>

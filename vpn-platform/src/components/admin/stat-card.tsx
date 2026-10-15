@@ -28,7 +28,7 @@ export function StatCard({
               "[&_svg]:size-4",
               tone === "success" && "text-success",
               tone === "danger" && "text-destructive",
-              tone === "warning" && "text-warning",
+              tone === "warning" && "text-warning-strong",
             )}
           >
             {icon}

@@ -39,6 +39,7 @@ export function CountBadge({ count, className }: { count: number; className?: st
   return (
     <span className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground tabular-nums", className)}>
       {count > 99 ? "99+" : count}
+      <span className="sr-only"> active</span>
     </span>
   );
 }
@@ -51,7 +52,8 @@ export function MyAccountsMenu({ active: routeActive }: { active: boolean }) {
   const { all, active } = useActiveAccounts();
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger className={cn(navItemClass(routeActive), "group")} aria-label={`My accounts${active.length ? ` (${active.length} active)` : ""}`}>
+      {/* The accessible name is the visible text plus the badge ("My accounts 2 active"). */}
+      <DropdownMenuTrigger className={cn(navItemClass(routeActive), "group")}>
         {active.length > 0 ? <AvatarStack accounts={active} size={20} /> : <UserRoundIcon />}
         My accounts
         <CountBadge count={active.length} />
@@ -59,7 +61,7 @@ export function MyAccountsMenu({ active: routeActive }: { active: boolean }) {
       <DropdownMenuContent align="end" sideOffset={10} className="w-[min(22rem,calc(100vw-2rem))] rounded-2xl p-2 shadow-xl">
         <div className="px-2 pt-1 pb-2">
           <p className="text-sm font-semibold">Accounts on this device</p>
-          <p className="text-xs text-muted-foreground">Saved only in this browser. Passwords and configs are never kept.</p>
+          <p className="text-xs text-muted-foreground">Saved only in this browser. Passwords and configs are never kept in this list.</p>
         </div>
         {all.length === 0 ? (
           <div className="flex flex-col items-center gap-2 rounded-xl bg-muted/50 px-4 py-6 text-center">
@@ -128,12 +130,12 @@ export function MyAccountsButton({ className }: { className?: string }) {
   return (
     <Link
       href="/my-accounts"
-      aria-label={`My accounts${active.length ? ` (${active.length} active)` : ""}`}
       className={cn(
         "relative inline-flex size-10 items-center justify-center rounded-lg text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
         className,
       )}
     >
+      <span className="sr-only">My accounts</span>
       {newest ? <UserAvatar src={newest.avatar} size={26} /> : <UserRoundIcon className="size-5" />}
       {active.length > 0 ? <CountBadge count={active.length} className="absolute -top-0.5 -right-0.5 h-4 min-w-4 px-1 text-[10px] ring-2 ring-background" /> : null}
     </Link>

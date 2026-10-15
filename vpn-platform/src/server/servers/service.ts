@@ -267,7 +267,7 @@ export async function publishServer(id: string, actor: AuditActor): Promise<void
     await tx.update(servers).set({ lifecycle: "active", publishedAt: server.publishedAt ?? new Date() }).where(eq(servers.id, id));
     await refreshServerStatus(tx, id);
   });
-  await logEvent({ event: "server.published", status: "success", serverId: id, adminId: actor.adminId, message: `Server ${server.name} published with ${count} protocol(s).` });
+  await logEvent({ event: "server.published", status: "success", serverId: id, adminId: actor.adminId, message: `Server ${server.name} published with ${count} protocol${count === 1 ? "" : "s"}.` });
   await audit(actor, "server.publish", { targetType: "server", targetId: id });
   clearPublicCache(); // admin changes show on public pages immediately
 }
@@ -385,7 +385,7 @@ export async function deleteServer(id: string, confirmName: string, actor: Audit
     level: "warning",
     serverId: id,
     adminId: actor.adminId,
-    message: `Server ${server.name} deleted${live ? ` (${live} live account(s) remain on the node)` : ""}.`,
+    message: `Server ${server.name} deleted${live ? ` (${live} live account${live === 1 ? "" : "s"} remain${live === 1 ? "s" : ""} on the node)` : ""}.`,
   });
   await audit(actor, "server.delete", { targetType: "server", targetId: id, details: { name: server.name, liveAccounts: live } });
   clearPublicCache(); // admin changes show on public pages immediately

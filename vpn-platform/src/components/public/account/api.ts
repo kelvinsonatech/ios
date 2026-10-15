@@ -41,6 +41,7 @@ function asErrorBody(body: unknown): PublicApiError["error"] | null {
   }
   if (typeof o.retryAfterSeconds === "number" && Number.isFinite(o.retryAfterSeconds)) out.retryAfterSeconds = o.retryAfterSeconds;
   if (typeof o.resetsAt === "string" && !Number.isNaN(Date.parse(o.resetsAt))) out.resetsAt = o.resetsAt;
+  if (o.limitScope === "daily" || o.limitScope === "burst") out.limitScope = o.limitScope;
   return out;
 }
 
@@ -68,6 +69,7 @@ async function toApiError(res: Response): Promise<ApiError> {
     fieldErrors: e?.fieldErrors,
     retryAfterSeconds: e?.retryAfterSeconds ?? (Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined),
     resetsAt: e?.resetsAt,
+    limitScope: e?.limitScope,
   };
   const code = e?.code ?? FALLBACK_CODES[res.status] ?? (res.status >= 500 ? "SERVER_ERROR" : "REQUEST_FAILED");
   return new ApiError(res.status, code, e?.message ?? `Request failed (${res.status})`, details);

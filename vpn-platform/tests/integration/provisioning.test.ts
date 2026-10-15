@@ -52,7 +52,7 @@ describe("provisioning lifecycle", () => {
   });
 
   it("creates an account end to end and delivers the config once via the claim token", async () => {
-    const r = await requestAccount({ serverId, protocolSlug: "vless", input: { username: "Traveller", duration: "7" }, idempotencyKey: randomUUID(), clientIp: nextIp() });
+    const r = await requestAccount({ serverId, protocolSlug: "vless", input: { username: "traveller", duration: "7" }, idempotencyKey: randomUUID(), clientIp: nextIp() });
     expect(r.state).toBe("queued");
     expect(await getRequestStatus(r.requestId, r.claimToken)).toEqual({ status: "pending" });
     await executeCreate(r.requestId);
@@ -64,7 +64,7 @@ describe("provisioning lifecycle", () => {
     expect(account?.fields.find((f) => f.key === "uuid")?.sensitive).toBe(true);
 
     // Nothing secret persisted in the database
-    const [acc] = await db().select().from(vpnAccounts).where(eq(vpnAccounts.username, "Traveller"));
+    const [acc] = await db().select().from(vpnAccounts).where(eq(vpnAccounts.username, "traveller"));
     expect(acc!.status).toBe("active");
     expect(JSON.stringify(acc!.metadata)).not.toMatch(/vless:\/\/|[0-9a-f]{8}-[0-9a-f]{4}-/);
     const row = await getRequestRow(r.requestId);

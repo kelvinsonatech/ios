@@ -59,8 +59,8 @@ export function SiteFooter({
             {settings.siteName}
           </Link>
           <p className="mt-4 max-w-sm text-sm leading-6 text-footer-muted">
-            {settings.tagline || "Private tunnels, provisioned in seconds."} Accounts are created on the server in seconds, shown to you once and
-            never stored.
+            {settings.tagline || "Private tunnels, provisioned in seconds."} Accounts are created on the server in seconds and delivered once; our
+            encrypted copy is erased within an hour.
           </p>
           {stats ? (
             <div className="mt-6 flex flex-wrap gap-2 text-xs">

@@ -31,7 +31,7 @@ export function CountriesGrid({ countries, protocolName }: { countries: PublicCo
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search a country"
               maxLength={60}
-              className="h-11 w-full rounded-full border border-input bg-card pr-10 pl-10 text-sm shadow-xs transition-[box-shadow,border-color] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 [&::-webkit-search-cancel-button]:hidden"
+              className="h-11 w-full rounded-full border border-input bg-card pr-10 pl-10 text-base shadow-xs sm:text-sm transition-[box-shadow,border-color] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/30 [&::-webkit-search-cancel-button]:hidden"
             />
             {query ? (
               <button

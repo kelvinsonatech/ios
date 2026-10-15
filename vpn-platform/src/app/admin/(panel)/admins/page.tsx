@@ -28,7 +28,9 @@ export default async function AdminsPage() {
                 <TableHead>Role</TableHead>
                 <TableHead className="hidden sm:table-cell">2FA</TableHead>
                 <TableHead className="hidden md:table-cell">Last sign-in</TableHead>
-                <TableHead className="w-10" />
+                <TableHead className="w-10">
+                  <span className="sr-only">Avatar</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -43,7 +45,7 @@ export default async function AdminsPage() {
                           {a.id === me.id ? <Badge variant="info">You</Badge> : null}
                         </span>
                         <span className="truncate text-xs text-muted-foreground">{a.email}</span>
-                        <span className={`text-xs sm:hidden ${a.mfaEnabled ? "text-success" : "text-warning"}`}>2FA {a.mfaEnabled ? "on" : "off"}</span>
+                        <span className={`text-xs sm:hidden ${a.mfaEnabled ? "text-success" : "text-warning-strong"}`}>2FA {a.mfaEnabled ? "on" : "off"}</span>
                       </span>
                     </span>
                   </TableCell>

@@ -32,13 +32,24 @@ export function friendlyError(err: unknown, ctx: { protocolName: string; serverN
   switch (code) {
     case "VALIDATION_FAILED":
       return { code, title: "Please check the form", message: "Some fields need your attention — see the notes below each one." };
-    case "RATE_LIMITED":
+    case "RATE_LIMITED": {
+      const retryAt = details.retryAfterSeconds ? new Date(Date.now() + details.retryAfterSeconds * 1000).toISOString() : undefined;
+      // The daily allowance per protocol; the server's message names the limit.
+      if (details.limitScope === "daily") {
+        return {
+          code,
+          title: "Daily limit reached",
+          message: err.message || `You've created today's maximum of ${ctx.protocolName} accounts. Other protocols are still available to you.`,
+          retryAt,
+        };
+      }
       return {
         code,
         title: "Slow down a little",
         message: "You've made several requests in a short time. Please wait before trying again.",
-        retryAt: details.retryAfterSeconds ? new Date(Date.now() + details.retryAfterSeconds * 1000).toISOString() : undefined,
+        retryAt,
       };
+    }
     case "SERVER_UNAVAILABLE":
       return {
         code,

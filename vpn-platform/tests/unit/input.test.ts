@@ -44,8 +44,8 @@ describe("dynamic protocol input validation", () => {
   it("applies select options and defaults", () => {
     const vless = def("vless");
     const s = buildInputSchema(vless, getAdapter("vless"));
-    expect(toNormalizedInput(s.parse({ username: "Traveller", duration: "14" }), vless).options).toEqual({ transport: "ws" });
-    expect(s.safeParse({ username: "Traveller", duration: "14", transport: "quic" }).success).toBe(false);
+    expect(toNormalizedInput(s.parse({ username: "traveller", duration: "14" }), vless).options).toEqual({ transport: "ws" });
+    expect(s.safeParse({ username: "traveller", duration: "14", transport: "quic" }).success).toBe(false);
   });
   it("WireGuard needs only a duration", () => {
     const wg = def("wireguard");

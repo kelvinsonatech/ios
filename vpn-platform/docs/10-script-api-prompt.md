@@ -383,10 +383,9 @@ Request from the website:
   that list. The SNI / bug-host choices in the form only change the links on the website and are
   never sent.
 - **Validate again on the server:**
-  - username: `^[a-z][a-z0-9_]{2,31}$` for every protocol except `vmess`, `vless` and `trojan`. For
-    those three the username is only the account name (remark / Xray `email` label, never a Linux
-    user) and the website also allows upper case, `.`, `-` and a leading digit:
-    `^[A-Za-z0-9][A-Za-z0-9_.-]{2,31}$`. Refuse system names such as `root`, `admin`, `daemon`, `bin`,
+  - username: `^[a-z][a-z0-9_]{2,31}$` for every protocol (for `vmess`, `vless` and `trojan` it is
+    only the account name, the remark / Xray `email` label, never a Linux user; the website uses the
+    same rule for all protocols). Refuse system names such as `root`, `admin`, `daemon`, `bin`,
     `sys`, `nobody`, `sshd`, `www-data`, `ubuntu`, `debian`, and any existing Linux user that was not
     created by the agent;
   - password: `^[A-Za-z0-9@#%^*_+=.,:~-]{6,32}$`;

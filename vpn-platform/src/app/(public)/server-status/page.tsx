@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
-import { ActivityIcon, RefreshCwIcon, ServerIcon, WifiIcon } from "lucide-react";
+import { ActivityIcon, RefreshCwIcon } from "lucide-react";
 import { HeroChip, PageHeader } from "@/components/public/page-header";
 import { Container } from "@/components/public/section";
 import { StatusBoard } from "@/components/public/status/status-board";
@@ -35,14 +35,6 @@ export default async function ServerStatusPage({ searchParams }: { searchParams:
         title="Server status"
         description="Every server we run, checked around the clock: whether it's online, how fast it answers and how many slots are left."
       >
-        {status ? (
-          <>
-            <HeroChip icon={<ServerIcon />}>
-              {status.totals.servers} {status.totals.servers === 1 ? "server" : "servers"}
-            </HeroChip>
-            <HeroChip icon={<WifiIcon />}>{status.totals.online} online</HeroChip>
-          </>
-        ) : null}
         <HeroChip icon={<RefreshCwIcon />}>Auto-refresh every 30 s</HeroChip>
       </PageHeader>
 

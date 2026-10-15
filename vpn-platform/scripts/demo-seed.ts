@@ -65,9 +65,9 @@ interface DemoAccount {
 
 const DEMO_ACCOUNTS: DemoAccount[] = [
   { server: "de1", protocol: "ssh", input: { username: "nomad_rider", password: "Sunrise-2026", duration: "7" } },
-  { server: "sg1", protocol: "vless", input: { username: "kopi-o", transport: "ws", duration: "3" } },
+  { server: "sg1", protocol: "vless", input: { username: "kopi_o", transport: "ws", duration: "3" } },
   { server: "jp1", protocol: "hysteria2", input: { username: "sakura_line", duration: "7" } },
-  { server: "us1", protocol: "trojan", input: { username: "liberty.run", transport: "grpc", duration: "14" } },
+  { server: "us1", protocol: "trojan", input: { username: "liberty_run", transport: "grpc", duration: "14" } },
   { server: "fi1", protocol: "slowdns", input: { username: "aurora_nord", password: "Northern+Lights9", duration: "30" } },
   { server: "gb1", protocol: "ssh-ssl", input: { username: "teatime", password: "Earl.Grey-42", duration: "7" } },
   { server: "au1", protocol: "vmess", input: { username: "outback", transport: "ws", sni_bug: "cdn.example.com", sni_type: "sni", duration: "3" } },

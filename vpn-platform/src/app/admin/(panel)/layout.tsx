@@ -43,7 +43,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     <div className="flex min-h-dvh">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col gap-6 overflow-y-auto border-r border-sidebar-border bg-sidebar px-3 py-4 lg:flex">
         <Link href="/admin" className="px-1.5">
-          <Brand suffix="Admin" />
+          <Brand suffix="Admin" name={settings.siteName} />
         </Link>
         <AdminNav allowed={allowed} badges={badges} />
         <div className="mt-auto border-t border-sidebar-border pt-3">
@@ -52,9 +52,9 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-6">
-          <MobileNav allowed={allowed} badges={badges} />
+          <MobileNav allowed={allowed} badges={badges} siteName={settings.siteName} />
           <Link href="/admin" className="lg:hidden">
-            <Brand />
+            <Brand name={settings.siteName} />
           </Link>
           <div className="ml-auto flex items-center gap-1">
             <ThemeToggle />

@@ -84,7 +84,7 @@ export function HealthSparkline({ slices, className }: { slices: HealthSlice[]; 
         <span className="font-medium text-foreground">Response time, last 24 hours</span>
         <span className="flex flex-wrap gap-x-3 tabular-nums">
           <span>
-            Uptime <span className={cn("font-medium", uptime >= 99 ? "text-success" : uptime >= 95 ? "text-warning" : "text-destructive")}>{uptime >= 99.95 ? "100" : uptime.toFixed(1)}%</span>
+            Uptime <span className={cn("font-medium", uptime >= 99 ? "text-success" : uptime >= 95 ? "text-warning-strong" : "text-destructive")}>{uptime >= 99.95 ? "100" : uptime.toFixed(1)}%</span>
           </span>
           {avg !== null ? (
             <span>

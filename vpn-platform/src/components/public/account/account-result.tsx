@@ -259,12 +259,12 @@ export function AccountResult({
       </div>
 
       <div className="mx-5 flex items-start gap-3 rounded-xl border border-warning/40 bg-warning-soft px-4 py-3 sm:mx-6" role="note">
-        <TriangleAlertIcon className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
+        <TriangleAlertIcon className="mt-0.5 size-5 shrink-0 text-warning-strong" aria-hidden />
         <div className="text-sm">
           <p className="font-semibold">Shown only once — save it now</p>
           <p className="text-muted-foreground">
-            We don&apos;t keep a copy of your password, keys or links. Copy them, download the .txt file or scan the QR codes before you leave
-            this page.
+            Our encrypted copy of your password, keys and links is erased within an hour. Copy them, download the .txt file or scan the QR
+            codes before you leave this page.
           </p>
         </div>
       </div>

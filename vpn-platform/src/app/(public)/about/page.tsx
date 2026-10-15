@@ -35,7 +35,7 @@ export default async function AboutPage() {
     {
       icon: <EyeOffIcon />,
       title: "Shown once",
-      text: "Your credentials travel to your browser as an encrypted one-time result. After you have seen them, the copy on our side is gone.",
+      text: "Your credentials travel to your browser as an encrypted one-time result. It is kept for at most an hour, so a reload does not lose it, and then erased.",
     },
     {
       icon: <FingerprintIcon />,

@@ -96,7 +96,7 @@ export default async function ProtocolPage({ params }: Props) {
                 <MapPinIcon /> Locations
               </>
             }
-            title={`Choose a ${p.name} location`}
+            title={`Choose your ${p.name} location`}
             description="Closer usually means faster. Servers refill their free slots at every reset."
           />
           {countries.length === 0 ? (
@@ -138,7 +138,7 @@ export default async function ProtocolPage({ params }: Props) {
             </div>
             <div className="rounded-3xl border bg-card p-6 shadow-sm sm:p-8">
               <h2 className="flex items-center gap-2 text-xl font-bold tracking-tight">
-                <LightbulbIcon className="size-5 text-warning" aria-hidden />
+                <LightbulbIcon className="size-5 text-warning-strong" aria-hidden />
                 Good to know
               </h2>
               <ul className="mt-4 space-y-3 text-sm text-muted-foreground">

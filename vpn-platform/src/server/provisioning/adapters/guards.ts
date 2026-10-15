@@ -24,11 +24,14 @@ export const linuxUsernameGuard = z
   .regex(/^[a-z][a-z0-9_]{2,31}$/, "Use 3–32 characters: lowercase letters, digits or _ and start with a letter.")
   .refine(notReserved, "This username is reserved. Please choose another one.");
 
-/** Display name / "email" used by Xray-family protocols. */
+/**
+ * Display name / "email" used by Xray-family protocols. Same rule as Linux usernames, because the
+ * node API validates every protocol's username with ^[a-z][a-z0-9_]{2,31}$ (docs/10).
+ */
 export const remarkGuard = z
   .string()
   .trim()
-  .regex(/^[A-Za-z0-9][A-Za-z0-9_.-]{2,31}$/, "Use 3–32 characters: letters, digits, _ . or - and start with a letter or digit.")
+  .regex(/^[a-z][a-z0-9_]{2,31}$/, "Use 3–32 lowercase letters, digits or _ and start with a letter.")
   .refine(notReserved, "This name is reserved. Please choose another one.");
 
 export const passwordGuard = z

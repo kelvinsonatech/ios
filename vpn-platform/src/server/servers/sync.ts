@@ -298,7 +298,7 @@ export async function syncServer(serverId: string, actor?: AuditActor): Promise<
       status: "success",
       serverId: s.id,
       adminId: actor?.adminId,
-      message: `${s.name} synchronised: ${result.protocols.filter((p) => p.detected).length} protocol(s) detected${
+      message: `${s.name} synchronised: ${plural(result.protocols.filter((p) => p.detected).length, "protocol")} detected${
         result.added.length ? `, new: ${result.added.join(", ")}` : ""
       }${result.removed.length ? `, missing: ${result.removed.join(", ")}` : ""}.`,
       details: {
@@ -477,4 +477,8 @@ export async function restartProvisioningService(serverId: string, actor: AuditA
 export async function getServerOrNull(id: string) {
   const [s] = await db().select().from(servers).where(and(eq(servers.id, id), isNull(servers.deletedAt))).limit(1);
   return s ?? null;
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
 }

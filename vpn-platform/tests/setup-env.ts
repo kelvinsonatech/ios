@@ -21,8 +21,7 @@ const defaults: Record<string, string> = {
   LOGIN_MAX_FAILURES: "3",
 };
 const env = process.env as Record<string, string | undefined>;
-for (const [k, v] of Object.entries(defaults)) {
-  // Tests must never run against the development or production database by accident.
-  if (k === "DATABASE_URL" || k === "REDIS_URL" || k === "NODE_ENV") env[k] = v;
-  else env[k] ??= v;
-}
+// Every test value is forced, so running vitest with the development .env loaded gives the same
+// results (and tests never touch the development or production database or Redis by accident).
+// TEST_DATABASE_URL / TEST_REDIS_URL above are the way to point tests elsewhere.
+for (const [k, v] of Object.entries(defaults)) env[k] = v;

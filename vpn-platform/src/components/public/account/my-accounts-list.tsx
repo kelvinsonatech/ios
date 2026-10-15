@@ -110,7 +110,7 @@ function ProfileCard({ account: a, now, onRemove }: { account: SavedAccountSumma
           )}
         >
           <span className={cn("size-1.5 rounded-full", expired ? "bg-muted-foreground/60" : "bg-success")} aria-hidden />
-          {expired ? "Expired" : "Active"}
+          {expired ? "Expired" : "Valid"}
         </span>
       </div>
 
@@ -280,7 +280,7 @@ export function MyAccountsList() {
         <EmptyState
           icon={<UserRoundPlusIcon />}
           title="No accounts on this device yet"
-          description="Accounts you create here show up as profile cards with their own avatar, so you always know when they expire. Passwords and configs are never stored."
+          description="Accounts you create here show up as profile cards with their own avatar, so you always know when they expire. Passwords and configs are never saved in this list."
         >
           <Button asChild className="h-11">
             <Link href="/#protocols">
@@ -419,9 +419,10 @@ export function MyAccountsList() {
             what&apos;s still running. Clearing your browser data removes it.
           </p>
           <p className="flex items-start gap-2 text-pretty text-muted-foreground">
-            <KeyRoundIcon className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-            Passwords, UUIDs, keys, links and config files are never saved here or on our servers. They were shown once when you created the
-            account; if you lost them, create a new account.
+            <KeyRoundIcon className="mt-0.5 size-4 shrink-0 text-warning-strong" aria-hidden />
+            Passwords, UUIDs, keys, links and config files are not saved in this list, and our encrypted copy is erased within an hour of
+            creation. If you lost them, create a new account. The status here comes from the expiry date only: an account can stop working
+            earlier if it is removed for breaking the rules.
           </p>
           <Link href="/report" className="inline-flex min-h-10 items-center gap-1.5 justify-self-start font-medium text-primary hover:underline">
             Account not working? Report a problem

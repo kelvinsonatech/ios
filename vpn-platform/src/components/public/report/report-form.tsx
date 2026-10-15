@@ -277,7 +277,7 @@ export function ReportForm({
             </span>
             <span className="sr-only">(required)</span>
           </label>
-          <span className={cn("text-xs tabular-nums", count > MAX_MESSAGE ? "text-destructive" : "text-muted-foreground")} aria-live="polite">
+          <span className={cn("text-xs tabular-nums", count > MAX_MESSAGE ? "text-destructive" : "text-muted-foreground")}>
             {count} / {MAX_MESSAGE}
           </span>
         </div>
@@ -292,7 +292,7 @@ export function ReportForm({
           placeholder="What happened, which app and port you used, and since when…"
           aria-invalid={!!errorFor("message") || undefined}
           aria-describedby={errorFor("message") ? `${messageId}-error` : `${messageId}-help`}
-          className="min-h-36 text-[15px] sm:text-sm"
+          className="min-h-36 text-base sm:text-sm"
         />
         {errorFor("message") ? (
           <p id={`${messageId}-error`} className="text-xs font-medium text-destructive">
@@ -323,7 +323,7 @@ export function ReportForm({
           placeholder="you@example.com"
           aria-invalid={!!errorFor("contactEmail") || undefined}
           aria-describedby={errorFor("contactEmail") ? `${emailId}-error` : `${emailId}-help`}
-          className="h-11 text-[15px] sm:text-sm"
+          className="h-11 text-base sm:text-sm"
         />
         {errorFor("contactEmail") ? (
           <p id={`${emailId}-error`} className="text-xs font-medium text-destructive">

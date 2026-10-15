@@ -59,7 +59,7 @@ function ServerCell({ r }: { r: ReportListItem }) {
   return (
     <div className="grid min-w-0 gap-0.5 text-sm">
       {r.server ? (
-        <Link href={`/admin/servers/${r.server.id}`} className="flex w-fit min-w-0 items-center gap-1.5 font-medium hover:underline">
+        <Link href={`/admin/servers/${r.server.id}`} className="flex max-w-full min-w-0 items-center gap-1.5 font-medium hover:underline">
           <Flag code={r.server.countryCode} className="h-3 w-4" />
           <span className="truncate">{r.server.name}</span>
         </Link>
@@ -96,7 +96,7 @@ function StatusCell({ r }: { r: ReportListItem }) {
           {r.resolvedByEmail ? ` · ${r.resolvedByEmail}` : ""}
         </span>
       ) : null}
-      {r.adminNote ? <span className="line-clamp-2 max-w-56 text-xs text-muted-foreground italic">“{r.adminNote}”</span> : null}
+      {r.adminNote && r.status === "resolved" ? <span className="line-clamp-2 max-w-56 text-xs text-muted-foreground italic">“{r.adminNote}”</span> : null}
     </div>
   );
 }
@@ -153,7 +153,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   <span
                     className={cn(
                       "min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold tabular-nums",
-                      t.key === "open" && n > 0 ? "bg-warning-soft text-warning" : "bg-background/70 text-muted-foreground",
+                      t.key === "open" && n > 0 ? "bg-warning-soft text-warning-strong" : "bg-background/70 text-muted-foreground",
                     )}
                   >
                     {formatNumber(n)}
@@ -192,11 +192,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 <TableRow>
                   <TableHead className="w-28">Received</TableHead>
                   <TableHead>Problem</TableHead>
-                  <TableHead>Server</TableHead>
+                  <TableHead className="w-44 min-w-36">Server</TableHead>
                   <TableHead className="min-w-64">Message</TableHead>
                   <TableHead>Reply to</TableHead>
                   <TableHead>Status</TableHead>
-                  {manage ? <TableHead className="w-28" /> : null}
+                  {manage ? (
+                    <TableHead className="w-28">
+                      <span className="sr-only">Actions</span>
+                    </TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>

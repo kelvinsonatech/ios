@@ -34,7 +34,7 @@ function textId(text: string): string {
 const TONES = {
   info: { icon: InfoIcon, row: "bg-info-soft", iconClass: "text-info" },
   success: { icon: SparklesIcon, row: "bg-success-soft", iconClass: "text-success" },
-  warning: { icon: TriangleAlertIcon, row: "bg-warning-soft", iconClass: "text-warning" },
+  warning: { icon: TriangleAlertIcon, row: "bg-warning-soft", iconClass: "text-warning-strong" },
 } as const;
 
 /**
@@ -70,7 +70,7 @@ export function AnnouncementBar({
   };
 
   return (
-    <div className="relative">
+    <section aria-label="Site notices" className="relative">
       <div className="bg-bar text-white">
         <div className="mx-auto flex min-h-9 max-w-6xl flex-wrap items-center justify-center gap-x-3 gap-y-0.5 px-4 py-1.5 text-center text-xs sm:justify-between sm:px-6 sm:text-[13px]">
           <p className="flex items-center gap-2">
@@ -122,6 +122,6 @@ export function AnnouncementBar({
           </div>
         </div>
       ) : null}
-    </div>
+    </section>
   );
 }

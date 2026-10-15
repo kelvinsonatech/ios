@@ -56,7 +56,8 @@ export function ReportStatusButton({
         variant={resolving ? "outline" : "ghost"}
         className={className}
         onClick={() => {
-          setText(note ?? "");
+          // Reopening starts with an empty note: the old resolution note no longer applies.
+          setText(resolving ? (note ?? "") : "");
           setError(undefined);
           setOpen(true);
         }}

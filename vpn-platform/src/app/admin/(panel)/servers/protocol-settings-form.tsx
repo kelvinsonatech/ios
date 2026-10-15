@@ -97,7 +97,7 @@ export function ProtocolSettingsForm({
                 key={r.protocolId}
                 className={cn(
                   "[&>td]:align-top max-sm:grid max-sm:grid-cols-2 max-sm:gap-x-3 max-sm:gap-y-2.5 max-sm:p-3 max-sm:[&>td]:p-0",
-                  !r.detected && "opacity-60",
+                  !r.detected && "bg-muted/30 [&_img]:opacity-60 [&_svg]:opacity-60",
                 )}
               >
                 <TableCell className="pt-3 max-sm:min-w-0 max-sm:whitespace-normal">
@@ -127,7 +127,7 @@ export function ProtocolSettingsForm({
                         )}
                         <span className="sm:hidden"> · {r.currentAccounts} active</span>
                       </span>
-                      {!r.globallyEnabled ? <span className="text-xs whitespace-normal text-warning">Disabled globally in Protocols</span> : null}
+                      {!r.globallyEnabled ? <span className="text-xs whitespace-normal text-warning-strong">Disabled globally in Protocols</span> : null}
                     </div>
                   </div>
                 </TableCell>

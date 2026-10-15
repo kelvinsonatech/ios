@@ -68,7 +68,7 @@ export function EmptyState({
       {icon ? (
         <span className="mb-4 flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground [&_svg]:size-7">{icon}</span>
       ) : null}
-      <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
+      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
       {description ? <p className="mt-1.5 max-w-md text-sm text-pretty text-muted-foreground">{description}</p> : null}
       {children ? <div className="mt-6 flex flex-wrap items-center justify-center gap-3">{children}</div> : null}
     </div>
