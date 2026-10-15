@@ -134,7 +134,7 @@ export default async function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Accounts created</CardTitle>
-            <CardDescription>Last 14 days (UTC)</CardDescription>
+            <CardDescription>Last 14 days ({d.today.timezone.replace(/_/g, " ")})</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex h-36 items-end gap-1">
